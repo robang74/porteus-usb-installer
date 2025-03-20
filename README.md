@@ -18,7 +18,7 @@ Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and runnin
 
 <div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div>
 
-How long takes to prepare such a USB 2.0 stick? Less than 120 seconds with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
+How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
 
 ---
 
