@@ -93,6 +93,7 @@ test -n "$kmp" && kmp="kmap=$kmp"
 trap "echo;echo;exit 1" INT
 
 perr "RUNNING: $shs $(basename $iso) into /dev/$dev" ${kmp:+with $kmp}
+fdisk -l /dev/${dev} >/dev/null 2>&1 || exit 1
 echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
 perr "WARNING: all data on '/dev/$dev' will be LOST"
 sure
