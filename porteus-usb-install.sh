@@ -39,7 +39,8 @@ function waitdev() {
 }
 
 function mke4fs() {
-    mkfs.ext4 -L $1 -E lazy_itable_init=1,lazy_journal_init=1 -F $2
+    local lbl=$1 dev=$2; shift 2
+    mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
 }
 
 wdr=$(dirname $0)
@@ -101,7 +102,7 @@ sync -f ${dst}${cfg} &
 
 # Creating persistence loop filesystem
 dd if=/dev/zero count=1 seek=1M of=${sve}
-mke4fs "changes" ${sve}
+mke4fs "changes" ${sve} -O ^has_journal
 
 # Moving persistence and configure it
 perr "INFO: waiting for fsdata synchronisation..."
