@@ -1,4 +1,4 @@
-## Porteus Linux live USB bootable installer
+## Porteus live USB bootable installer
 
 It creates a bootable USB with 512MB of persistence
 
