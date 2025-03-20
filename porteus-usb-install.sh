@@ -100,6 +100,11 @@ sure
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}? 2>/dev/null || true
+echo
+if mount | grep /dev/${dev}; then
+    perr "ERROR: device /dev/${dev} is busy, abort!"
+    exit 1
+fi
 mkdir -p ${lpd} ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
