@@ -1,12 +1,12 @@
-## Porteus USB Installer
-
-Porteus Linux live USB bootable installer
+## Porteus Linux live USB bootable installer
 
 It creates a bootable USB with 512MB of persistence
 
-- **USAGE**: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it]`
+- Porteus root password: **toor**
 
-Porteus root password: **toor**
+- Background image source: [Newsweek](https://www.newsweek.com/government-report-new-space-race-nasa-china-1736843)
+
+- Usage: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it]`
 
 ---
 
@@ -50,8 +50,10 @@ Data encryption:
 
 - https://linux.rz.rub.de/porteus/x86_64/current
 
+---
+
 ### Tested with
 
-- [Porteus-MATE-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-MATE-v5.01-x86_64.iso)
+- [Porteus-MATE-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-MATE-v5.01-x86_64.iso)  (mainly)
 
 - [Porteus-LXQT-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-LXQT-v5.01-x86_64.iso)
