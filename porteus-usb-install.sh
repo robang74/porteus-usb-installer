@@ -9,7 +9,7 @@ set -e
 journal="-O ^has_journal"
 
 # This below is the default size in 512-blocks for the persistent loop file
-blocks="1M"
+blocks="256K"
 
 ################################################################################
 
@@ -67,10 +67,12 @@ dev=${2:-}
 kmp=${3:-}
 
 sve="changes.dat"
+bgi="moonwalker-background.jpg"
 bsi="moonwalker-bootscreen.png"
 opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 cfg="/boot/syslinux/porteus.cfg"
 mbr="porteus-usb-bootable.mbr.gz"
+lpd="/tmp/l"
 dst="/tmp/d"
 src="/tmp/s"
 
@@ -81,6 +83,9 @@ test -r "$iso" || usage
 
 test -r "$bsi" || bsi="$wdr/$bsi"
 test -f "$bsi" || bsi=""
+test -r "$bgi" || bgi="$wdr/$bgi"
+test -f "$bgi" || bgi=""
+
 test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
@@ -95,6 +100,7 @@ sure
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}? 2>/dev/null || true
+mkdir -p ${lpd} ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
@@ -116,6 +122,14 @@ sync -f ${dst}${cfg} &
 # Creating persistence loop filesystem
 dd if=/dev/zero count=1 seek=${blocks} of=${sve}
 mke4fs "changes" ${sve} ${journal}
+if test -n "${bsi}"; then
+    mount -o loop ${sve} ${lpd}
+    mkdir -p ${lpd}/usr/share/wallpapers/
+    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
+    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
+    echo "INFO: custom background '${bgi}' copied"
+    umount ${lpd}
+fi
 
 # Moving persistence and configure it
 perr "INFO: waiting for fsdata synchronisation..."
