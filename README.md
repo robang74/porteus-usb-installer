@@ -18,6 +18,8 @@ I decided to go without a journal within the persistent loop file because it is 
 
 The size of the first partition into the MBR is too big to fit a common 1GB usbkey which is usually 10^9 bytes eq. to 1.953.125 blocks. Thus a 2GB usbkey is the min. required.
 
+The size of the persistent loop file has been set to 128Mb in such a way there will be 430MB c.a. of free space to install optional modules. As much as the whole Porteus base.
+
 ---
 
 ### Suggested choices
