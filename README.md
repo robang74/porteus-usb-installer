@@ -84,6 +84,12 @@ When that file is copied into the VFAT32, then the holes are filled with zeros, 
 
 ---
 
+### Embedded systems
+
+Are you more of an embedded guy/girl? In this case, I suggest [TinyCore](http://tinycorelinux.net/) Linux rather than Porteus which is more suitable for old hardware and kiosk systems. In particular, [TinyCore Editor](https://github.com/robang74/tinycore-editor) can serve you as a non-certifiable by design but functioning proof-of-concept system editor.
+
+---
+
 ### Copyright
 
 (C) 2025, Roberto A. Foglietta &lt;roberto.foglietta@gmail.com&gt;, licenced under BSD 3-clauses terms.
