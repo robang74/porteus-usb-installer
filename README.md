@@ -8,6 +8,8 @@ It creates a bootable USB with 512MB of persistence
 
 - Usage: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it]`
 
+The v0.2.0 has been reported that it works also for [PorteuX](https://github.com/porteux/porteux) but I did not test it and I am not granting the compatibility for the future.
+
 ---
 
 ### Default choices
@@ -57,3 +59,12 @@ Data encryption:
 - [Porteus-MATE-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-MATE-v5.01-x86_64.iso)  (mainly)
 
 - [Porteus-LXQT-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-LXQT-v5.01-x86_64.iso)
+
+---
+
+### Copyright
+
+(C) 2025, Roberto A. Foglietta &lt;roberto.foglietta@gmail.com&gt;, licenced under BSD 3-clauses terms.
+
+**Note**: the boot screen image, also used for background, is included here as per *fair-use* terms, only.
+
