@@ -12,6 +12,14 @@ The v0.2.0 has been reported that it works also for [PorteuX](https://github.com
 
 ---
 
+### Preview
+
+Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and running on an ultra-old Thinkpad X220 equipped with 4GB of RAM:
+
+<div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div>
+
+---
+
 ### Default choices
 
 1. The script is not executable by default, hence it requires to be run by a shell. An extra caution: even if it requires root password, the session could be already on sudo or root.
