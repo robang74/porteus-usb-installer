@@ -14,7 +14,7 @@ Porteus root password: **toor**
 
 The script is not executable by default, hence it requires to be run by a shell. An extra caution: even if it requires root password, the session could be already on sudo or root.
 
-I decided to go without a journal on the persistent loop file because it is saved on a VFAT. In this way, it is faster and stresses the USB key less, and thus increases its durability.
+I decided to go without a journal within the persistent loop file because it is saved on a VFAT. It is faster and stresses the USB key less, and thus increases its durability.
 
 ---
 

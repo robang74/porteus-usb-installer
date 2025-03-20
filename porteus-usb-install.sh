@@ -5,6 +5,14 @@
 ################################################################################
 set -e
 
+# Comment this line below to have the journal within the persistence loop file
+journal="-O ^has_journal"
+
+# This below is the default size in 512-blocks for the persistent loop file
+blocks="1M"
+
+################################################################################
+
 function perr() {
     { echo; echo "$@"; } >&2
 }
@@ -52,11 +60,14 @@ if [ "$(whoami)" != "root" ]; then
     exit $?
 fi
 
+################################################################################
+
 iso=${1:-}
 dev=${2:-}
 kmp=${3:-}
 
 sve="changes.dat"
+bsi="moonwalker-bootscreen.png"
 opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 cfg="/boot/syslinux/porteus.cfg"
 mbr="porteus-usb-bootable.mbr.gz"
@@ -68,6 +79,8 @@ test -b "/dev/$dev" || usage
 test -r "$iso" || iso="$wdr/$iso"
 test -r "$iso" || usage
 
+test -r "$bsi" || bsi="$wdr/$bsi"
+test -f "$bsi" || bsi=""
 test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
@@ -101,13 +114,15 @@ cp -arf ${src}/* ${dst}
 sync -f ${dst}${cfg} &
 
 # Creating persistence loop filesystem
-dd if=/dev/zero count=1 seek=1M of=${sve}
-mke4fs "changes" ${sve} -O ^has_journal
+dd if=/dev/zero count=1 seek=${blocks} of=${sve}
+mke4fs "changes" ${sve} ${journal}
 
 # Moving persistence and configure it
 perr "INFO: waiting for fsdata synchronisation..."
 wait
 test -r ${dst}${cfg} || missing ${dst}${cfg}
+if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png;
+   then echo "INFO: custom boot screen background '${bsi}' copied"; fi
 sed -e "s,APPEND changes=/porteus$,&/${sve} ${kmp}," -i ${dst}${cfg}
 grep -n "changes=/porteus/${sve}" ${dst}${cfg}
 mv -f ${sve} ${dst}/porteus/
