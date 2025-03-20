@@ -23,8 +23,8 @@ function sure() {
     local ans
     echo
     read -p "Are you sure to contine [N/y] " ans
-    test "$ans" == "Y" -o "$ans" == "y" && return 0
     echo
+    test "$ans" == "Y" -o "$ans" == "y" && return 0
     exit 1 
 }
 
@@ -71,8 +71,11 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
 
+trap "echo;echo;exit 1" INT
+
 perr "RUNNING: $shs $(basename $iso) into /dev/$dev" ${kmp:+with $kmp}
-perr "WARNING: All data on '/dev/$dev' will be lost"
+echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
+perr "WARNING: all data on '/dev/$dev' will be LOST"
 sure
 
 # Clear previous failed runs, eventually
@@ -101,6 +104,7 @@ dd if=/dev/zero count=1 seek=1M of=${sve}
 mke4fs "changes" ${sve}
 
 # Moving persistence and configure it
+perr "INFO: waiting for fsdata synchronisation..."
 wait
 test -r ${dst}${cfg} || missing ${dst}${cfg}
 sed -e "s,APPEND changes=/porteus$,&/${sve} ${kmp}," -i ${dst}${cfg}
@@ -108,6 +112,7 @@ grep -n "changes=/porteus/${sve}" ${dst}${cfg}
 mv -f ${sve} ${dst}/porteus/
 
 # Umount source and eject USB device
+perr "INFO: waiting for umount synchronisation..."
 umount ${src} ${dst}
 eject /dev/${dev}
 set +xe
