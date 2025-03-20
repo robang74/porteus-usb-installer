@@ -30,7 +30,7 @@ function missing() {
 function sure() {
     local ans
     echo
-    read -p "Are you sure to contine [N/y] " ans
+    read -p "Are you sure to continue [N/y] " ans
     echo
     test "$ans" == "Y" -o "$ans" == "y" && return 0
     exit 1 
