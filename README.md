@@ -4,7 +4,17 @@ Porteus Linux live USB bootable installer
 
 It creates a bootable USB with 512MB of persistence
 
+- **USAGE**: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it]`
+
 Porteus root password: **toor**
+
+---
+
+### Default choices
+
+The script is not executable by default, hence it requires to be run by a shell. An extra caution: even if it requires root password, the session could be already on sudo or root.
+
+I decided to go without a journal on the persistent loop file because it is saved on a VFAT. In this way, it is faster and stresses the USB key less, and thus increases its durability.
 
 ---
 
