@@ -14,9 +14,11 @@ The v0.2.0 has been reported that it works also for [PorteuX](https://github.com
 
 ### Preview
 
-Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and running on an ultra-old Thinkpad X220 equipped with 4GB of RAM:
+Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and running on an ultra-old Thinkpad X220 equipped with 4GB of RAM. The storage stick is inserted in the USB 2.0 port, on the bottom left angle, and it is so short that it cannot even be seen without checking for it specifically for it.
 
 <div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div>
+
+How long takes to prepare such a USB 2.0 stick? Less than 120 seconds with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
 
 ---
 
