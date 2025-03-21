@@ -18,18 +18,20 @@ fi
 
 ################################################################################
 
+function errexit() { echo; exit 1; }
+
 function perr() {
     { echo; echo "$@"; } >&2
 }
 
 function usage() {
     perr "USAGE: bash $shs /path/file.iso [/dev/]sdx [it]"
-    exit 1
+    errexit
 }
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing, abort!"
-    exit 1
+    errexit
 }
 
 function sure() {
@@ -39,7 +41,7 @@ function sure() {
     echo
     ans=${ans:0:1}
     test "$ans" == "Y" -o "$ans" == "y" && return 0
-    exit 1 
+    errexit
 }
 
 function waitdev() {
@@ -49,7 +51,7 @@ function waitdev() {
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
-    exit 1
+    errexit
 }
 
 function mke4fs() {
@@ -76,7 +78,7 @@ function download() {
         echo
         echo "Downloading file: $f"
         sure
-        wget -q --show-progress $opt $url/$f || exit 1
+        wget -q --show-progress $opt $url/$f || errexit
     done
 }
 
@@ -95,8 +97,15 @@ shs=$(basename $0)
 
 ################################################################################
 
-trap "echo;echo;exit 1" INT
-test -b $1 && set -- "" "" "" "" "$@"
+trap "echo; echo; exit 1" INT
+if echo "$1" | grep -qe "^/dev/"; then
+    if [ -b "$1" ]; then
+        set -- "" "" "" "" "$@"
+    else
+        perr "ERROR: block device '$1' is not valid, abort!"
+        errexit
+    fi
+fi
 
 type=${1:-MATE}
 #uweb=${2:-https://linux.rz.rub.de}
@@ -108,8 +117,8 @@ lang=$6
 shf="sha256sums.txt"
 url="$uweb/porteus/$arch/$vers"
 
-set +x
 mkdir -p porteus; pushd porteus
+declare -i tms=$(date +%s%N)
 
 download $url $shf
 shf=$(search $shf)
@@ -122,7 +131,7 @@ if ! isocheck $iso $chk; then
     iso=$(search $iso)
     if ! isocheck  $iso $chk; then
         rm -f $iso
-        exit 1
+        errexit
     fi
 fi
 
@@ -136,7 +145,13 @@ zpkg=$(search $zpkg)
 echo
 tar xvzf $zpkg -C . --strip-components=1
 
-test -n "$scrp" || exit 0
-test -n "$bdev" || exit 0
-test -r "$scrp" && bash $scrp $iso $bdev $lang
+# Say goodbye and hand over
+echo
+let tms=($(date +%s%N)-$tms+500000000)/1000000000
+echo "INFO: Preparation completed in $tms seconds"
+if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
+    bash $scrp $iso $bdev $lang
+else
+    echo
+fi
 
