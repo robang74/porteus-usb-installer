@@ -1,5 +1,9 @@
 A NICE FORUM CHAT, REPORTED HERE
 
+- source: https://forum.porteus.org/viewtopic.php?p=102404#p102404
+
+---
+
 [quote=ncmprhnsbl post_id=102403 time=1742534116 user_id=1017]
 add a "sanity check", ie. check for the necessary utilities on the host system, say, with which
 [/quote]
