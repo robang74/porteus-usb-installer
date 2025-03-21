@@ -158,7 +158,6 @@ if false; then
 fi
 zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
-#fisk -l /dev/${dev}
 
 # Prepare partitions and filesystems
 if [ $ext -eq 4 ]; then
@@ -175,6 +174,7 @@ else
 fi
 
 # Mount source and destination devices
+echo
 mkdir -p ${dst} ${src};
 mount /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
@@ -199,6 +199,7 @@ else
     mke4fs "changes" ${sve} ${nojournal}
     mkdir -p ${dst}/porteus/
     mv -f ${sve} ${dst}/porteus/
+    #sync ${dst}/*.txt &
 fi
 
 # Copying Porteus system and modules from ISO file
@@ -213,11 +214,14 @@ fi
 
 # Umount source and eject USB device
 perr "INFO: waiting for umount synchronisation..."
-umount ${dst} ${src}
+#wait
+umount ${src}
+umount ${dst}
+fsck -yf /dev/${dev}2 || true
 eject /dev/${dev}
-set +xe
 
 # Say goodbye and exit
+set +xe
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Installation completed in $tms seconds"
