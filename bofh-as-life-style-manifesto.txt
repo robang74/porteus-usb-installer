@@ -53,3 +53,10 @@ Why, the hell Roberto? Because a sysadm is an bastard operator from the Hell, or
 Does it sound crazy? Imagine the CTO/CFO as not-root users and you have the level of madness served. Hi Bill (Gates), I am the sysadm in charge of system root and I have "good" news for you! So, this is the reason because of BOFH (bastar operator from the Hell).  :buhehe: 
 
 Best regards, R-
+
+
+[b]POST SCRIPTUM[/b]
+
+Before heating up, here Gemini opinion about my answer  :roll: 
+
+--> https://g.co/gemini/share/a53246e2c198
