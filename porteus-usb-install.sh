@@ -100,7 +100,7 @@ test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
 
 if [ "$(whoami)" != "root" ]; then
-    perr "WARNING: script '$shs' for '$dev' requires root priviledges"
+    perr "WARNING: script '$shs' for '/dev/$dev' requires root priviledges"
     echo
 # RAF: this could be annoying but it could also be an extra safety checkpoint
 #   sudo -k
