@@ -86,6 +86,8 @@ Then we can put that USB into a laptop/PC, boot in all-in-memory mode, clone the
 
 When that file is copied into the VFAT32, then the holes are filled with zeros, hopefully. In fact, `cp` is supposed to not access the underlying physical device unless the kernel allocated blocks into the file instead of holes. This implies that we do not need extra 512Mb of free memory (or 128Mb per the last v0.2.5 version) to create those files but much less (c.a. 10Mb). While `/boot` `/syslinux` and `/porteus` folders are - supposedly - loaded in RAM, so we can rewrite the USB stick reading from the RAM filesystem.
 
+If you like to know more about future planning, read the [BOFH as life style manifesto](bofh-as-life-style-manifesto.txt).
+
 ---
 
 ### Embedded systems
