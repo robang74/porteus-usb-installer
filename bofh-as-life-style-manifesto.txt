@@ -1,0 +1,51 @@
+A NICE FORUM CHAT, REPORTED HERE
+
+[quote=ncmprhnsbl post_id=102403 time=1742534116 user_id=1017]
+add a "sanity check", ie. check for the necessary utilities on the host system, say, with which
+[/quote]
+
+The `set -e` is there also for a reason. Check that all stuff are in place is the LAST thing to do, because until its done things might get in or out. Plus, using the BSD 3-clauses as license, rather than a "GPLv2 or later" I am impliciting claim that "what you get is AS-IS". Finally, when I am saying "it uses bashism but in the long run I want it running with busybox a/sh", I am suggesting that a static linked parser in a AppImage-like binary is the way to port it a broader set of system. In this case there is not "sanity check" to do because everything is included into a single executable binary.
+
+[quote=ncmprhnsbl post_id=102403 time=1742534116 user_id=1017]
+i notice you include the keymap cheatcode, this can be used in the /porteus/porteus-v5.0-x86_64.cfg file, which would make it work across all boot entries.
+same for timezone= cheat, which might be nice to include as an option.
+[/quote]
+
+First of all /porteus/porteus-v5.0-x86_64.cfg file is a nice way to go but it is porteus-specific while a kernel argument works for every Linux system despite its application might vary depending from the bootloader to the bootloader. So, no - I did not read the porteous documentation neither I am gonna to knee the porteus way to do - for me porteus is just another Linux system and that's all. The same for the bootloader but one piece at time, so the boot loader being lower-level, it is still ruling as long as it serves its purposes.
+
+Secondly, in the moment that I claimed that future improvements are gonna towards the direction of wget -O- | dd of=/dev/usb, boot in RAMFS and do the magic, it means that the only thing users needs in first place is having their keyboard immediately working. How? Well, wget -O- is just for bragging but #kmap=xx can be found into a ISO file and changed, as long as checksum, if any, is matched at run-time. Anyway, this is mainly a shortcoming of porteus but I am not gonna to tell porteus developing team what or how to do their stuff.
+
+So, the user download, write, and boot in RAMFS. At this point s/he can do all the configurations s/he likes and then use the 3rd script I am gonna to write to create on another USB or in the same USB from which s/he boot the system using my approach to create a persistence and to save its configuration into the persistence. Hence:
+
+1 - download
+2 - write
+3 - boot
+4 - config
+5 - create
+
+There is more, as you can imagine but for the generic porteus user, this is a nice way to go. So, if the porteus team wish to integrate the script and provide a way to change the keyboard on the fly (aka download ISO, check its SHA256 and altering the kmap before booting) then the generic user will magically find him/herself in the position to customise its porteous and save it having a living system without the need to change by hands config files and test it, fail, retray. The system config and create itself. Here again, no sanity check is needed.
+
+[quote=ncmprhnsbl post_id=102403 time=1742534116 user_id=1017]
+question: am i correct that two partitions are created 1st. fat32, 2nd. ext4 ?
+if that's the case, it's possible to place the {boot,EFI} folders on 1st and the porteus folder on 2nd, which would enable folder persistence, without the need for a .dat container.. (at least, as an option)
+[/quote]
+
+Everything is possible, but then you should ask to porteus dev team why the not did it in such a way as per default way to go. Again, I am not to teach them anything. I take what they did and I provide myself a reasonable way to customise and use it. Probably, they did this in their installation tools. Which again, I did not considered but once I boot into RAMFS mode, it might be THAT way, the way the imagined to go to create an installation. Because as you can imagine when a system run on an ext4 while the boot is into VFAT32, that it is not anymore a live but a full installed system.
+
+Guess what? A full installed system is a thing. A pxe bootable system running on a single chunk of data - that can be sync by ethernet in real-time - is completely another thing. By the way, we do not sync stuff in real-time that has a journal filesystem running on it. Which is another reason because I disabled it when creating the changes.dat. Which is something that can be somewhere else and not necessarily on a USB.
+
+Put all this together: a pxe boot (or a bootable usb), configure on RAMFS live, deploy, and network shared persistence. What is that? A thin client or if you prefer to have a broader vision, a Chrome OS alternative when Cloud as SaaS is provided instead of in-home administered Ethernet.
+
+[quote=ncmprhnsbl post_id=102403 time=1742534116 user_id=1017]
+another one: option to download a browser module from the mirror/modules folder and place it in porteus/modules
+[/quote]
+
+Which is part of the customisation in RAMFS. Why should I have to make a lot of choice for the user? Let him/her boot in RAMFS, customise his/her system and give the chance to create a bootable USB stick to run it out-of-their-pockets. Which is probably - exactly - what the porteus DEV team did in providing an installation GUI into porteus itself but I did not even care give it a try. 
+
+--HUMOR ON--
+Why, the hell Roberto? Because a sysadm is an bastard operator from the Hell, or - in a more "professional" way - I do not care AND I should not care about porteous DEV team decision or schedule to deliver - [b]I am in charge[/b], as person as sysadm, to grant the service and to grant that the service will be Unix/Posix compliant whatever the DEV team does, and what ever punishment I have to enjoy to distribute among the not-root users in order to keep the system working. 
+--HUMOR OFF--
+
+Does it sound crazy? Imagine the CTO/CFO as not-root users and you have the level of madness served. Hi Bill (Gates), I am the sysadm in charge of system root and I have "good" news for you! So, this is the reason because of BOFH (bastar operator from the Hell).  :buhehe: 
+
+Best regards, R-
