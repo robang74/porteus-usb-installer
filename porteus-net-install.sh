@@ -11,6 +11,11 @@ repo="https://github.com/robang74/porteus-usb-installer"
 zurl="$repo/archive/refs/tags"
 scrp="porteus-usb-install.sh"
 
+if [ "$DEVEL" == "1" ]; then
+   zurl="$repo/archive/refs/heads"
+   zpkg="main.tar.gz"
+fi
+
 ################################################################################
 
 function perr() {
@@ -32,6 +37,7 @@ function sure() {
     echo
     read -p "Are you sure to continue [N/y] " ans
     echo
+    ans=${ans:0:1}
     test "$ans" == "Y" -o "$ans" == "y" && return 0
     exit 1 
 }
@@ -77,9 +83,9 @@ function download() {
 function isocheck() {
     printf "\nChecking '$1' sha256sum ... "
     if sha256sum $1 | grep -qw "$2"; then
-        printf "OK\n\n"
+        printf "OK\n"
     else
-        printf "KO\n\n"
+        printf "KO\n"
         return 1
     fi
 }
@@ -120,8 +126,14 @@ if ! isocheck $iso $chk; then
     fi
 fi
 
-download $zurl $zpkg
+if [ "$DEVEL" == "1" ]; then
+    rm -f $zpkg $wdr/$zpkg
+    printf "y\n" | download $zurl $zpkg
+else
+    download $zurl $zpkg
+fi
 zpkg=$(search $zpkg)
+echo
 tar xvzf $zpkg -C . --strip-components=1
 
 test -n "$scrp" || exit 0
