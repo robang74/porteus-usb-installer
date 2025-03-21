@@ -66,6 +66,7 @@ fi
 
 if [ "$(whoami)" != "root" ]; then
     perr "WARNING: the script '$shs' requires root priviledges"
+    echo
     sudo bash $0 "$@"
     exit $?
 fi
