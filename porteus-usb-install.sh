@@ -53,8 +53,16 @@ function mke4fs() {
     mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
 }
 
+################################################################################
+
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
+    usage
+    echo
+    exit
+fi
 
 if [ "$(whoami)" != "root" ]; then
     perr "WARNING: the script '$shs' requires root priviledges"
@@ -63,6 +71,8 @@ if [ "$(whoami)" != "root" ]; then
 fi
 
 ################################################################################
+
+trap "echo; echo; exit 1" INT
 
 iso=${1:-}
 dev=${2:-}
@@ -92,7 +102,7 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
 
-trap "echo; echo; exit 1" INT
+################################################################################
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp}
 fdisk -l /dev/${dev} >/dev/null || errexit

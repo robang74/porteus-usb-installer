@@ -25,7 +25,7 @@ function perr() {
 }
 
 function usage() {
-    perr "USAGE: bash $shs /path/file.iso [/dev/]sdx [it]"
+    perr "USAGE: bash $shs [type] [url] [arch] [vers] [/dev/sdx] [it]"
     errexit
 }
 
@@ -91,12 +91,21 @@ function isocheck() {
     fi
 }
 
+################################################################################
+
 wdr=$(dirname $0)
 shs=$(basename $0)
+
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
+    usage
+    echo
+    exit
+fi
 
 ################################################################################
 
 trap "echo; echo; exit 1" INT
+
 if echo "$1" | grep -qe "^/dev/"; then
     if [ -b "$1" ]; then
         set -- "" "" "" "" "$@"
@@ -106,7 +115,8 @@ if echo "$1" | grep -qe "^/dev/"; then
     fi
 fi
 
-type=${1:-MATE}
+type=${1^^}
+type=${type:-MATE}
 #uweb=${2:-https://linux.rz.rub.de}
 uweb=${2:-https://mirrors.dotsrc.org}
 arch=${3:-x86_64}
