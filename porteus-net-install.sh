@@ -83,7 +83,7 @@ function download() {
 
 function isocheck() {
     printf "\nChecking '$1' sha256sum ... "
-    if sha256sum $1 | grep -qw "$2"; then
+    if sha256sum $1 2>/dev/null | grep -qw "$2"; then
         printf "OK\n"
     else
         printf "KO\n"
@@ -134,7 +134,7 @@ shf=$(search $shf)
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
-iso=$(search $iso)
+iso=$(search $iso || echo $iso)
 if ! isocheck $iso $chk; then
     download -c $url $iso
     iso=$(search $iso)
