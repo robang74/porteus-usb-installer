@@ -41,8 +41,13 @@ function sure() {
 }
 
 function waitdev() {
-    partprobe
-    for i in $(seq 1 100); do
+    while false; do
+        umount /dev/$dev* 2>/dev/null || true
+        partprobe 2>&1 | grep -v "recursive partition" |\
+            grep . || break
+        sleep 0.5
+    done
+    partprobe; for i in $(seq 1 100); do
         egrep " $1$" /proc/partitions && return 0
         sleep 0.1
     done
@@ -53,6 +58,13 @@ function waitdev() {
 function mke4fs() {
     local lbl=$1 dev=$2; shift 2
     mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
+}
+
+function search() {
+    local f=$1
+    if [ -r "$f" ]; then echo "$f"; return 0; fi
+    if [ -r "$wdr/$f" ]; then echo "$wdr/$f"; return 0; fi
+    return 1
 }
 
 ################################################################################
@@ -126,7 +138,7 @@ sure
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
-umount /dev/${dev}? 2>/dev/null || true
+umount /dev/${dev}* 2>/dev/null || true
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
@@ -136,12 +148,15 @@ mkdir -p ${lpd} ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
-if [ $ext -eq 4 ]; then
-    dd if=$(search $iso) bs=1M count=1 | if [ -n "$kmap" ]; then
-        sed -e "s,# kmap=br,kmap=$kmp  ,"; else dd; fi
-else
-    zcat ${mbr}
-fi >/dev/${dev}
+if false; then
+    if [ $ext -eq 4 ]; then
+        dd if=$(search $iso) bs=1M count=1 | if [ -n "$kmap" ]; then
+            sed -e "s,# kmap=br,kmap=$kmp  ,"; else dd status=none; fi
+    else
+        zcat ${mbr}
+    fi >/dev/${dev}
+fi
+zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 #fisk -l /dev/${dev}
 
@@ -164,45 +179,41 @@ mkdir -p ${dst} ${src};
 mount /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
 
-# Copying Porteus files from ISO file
+# Copying Porteus EFI/boot files from ISO file
 cp -arf ${src}/boot ${src}/EFI ${dst}
-test -r ${dst}${cfg} || missing ${dst}${cfg}
-if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png;
-   then echo "INFO: custom boot screen background '${bsi}' copied"; fi
-sed -e "s,APPEND changes=/porteus$,&/${sve} ${kmp}," -i ${dst}${cfg}
+test -r ${dst}/${cfg} || missing ${dst}/${cfg}
+echo
+str=" ${kmp}"; test $ext -eq 4 || str="/${sve} ${kmp}"
+sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
+grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
+if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
+    perr "INFO: custom boot screen background '${bsi}' copied"
+fi
+
+# Creating persistence loop filesystem or umount
 if [ $ext -eq 4 ]; then
     umount ${dst}
     mount /dev/${dev}2 ${dst}
 else
-    grep -n "changes=/porteus/${sve}" ${dst}${cfg}
-fi
-cp -arf ${src}/*.txt ${src}/porteus ${dst}
-sync -f ${dst}/*.txt &
-
-# Creating persistence loop filesystem
-if [ $ext -eq 4 ]; then
-    lpd=${dst}/porteus/changes
-else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve}
     mke4fs "changes" ${sve} ${nojournal}
+    mkdir -p ${dst}/porteus/
+    mv -f ${sve} ${dst}/porteus/
 fi
+
+# Copying Porteus system and modules from ISO file
+cp -arf ${src}/*.txt ${src}/porteus ${dst}
 if test -n "${bsi}"; then
-    test $ext -eq 4 || mount -o loop ${sve} ${lpd}
+    lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    echo "INFO: custom background '${bgi}' copied"
-    test $ext -eq 4 || umount ${lpd}
+    perr "INFO: custom background '${bgi}' copied"
 fi
-
-# Moving persistence and configure it
-perr "INFO: waiting for fsdata synchronisation..."
-wait
-test $ext -eq 4 || mv -f ${sve} ${dst}/porteus/
 
 # Umount source and eject USB device
 perr "INFO: waiting for umount synchronisation..."
-umount ${src} ${dst}
+umount ${dst} ${src}
 eject /dev/${dev}
 set +xe
 
