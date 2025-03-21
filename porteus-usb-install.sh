@@ -5,10 +5,10 @@
 ################################################################################
 set -e
 
-USAGE="/path/file.iso [/dev/]sdx [it]"
+USAGE="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
 # Comment this line below to have the journal within the persistence loop file
-journal="-O ^has_journal"
+nojournal="-O ^has_journal"
 
 # This below is the default size in 512-blocks for the persistent loop file
 blocks="256K"
@@ -70,9 +70,15 @@ fi
 
 trap "echo; echo; exit 1" INT
 
+declare -i ext=0
 iso=${1:-}
 dev=${2:-}
+if [ "x$3" == "x--ext4-install" ]; then
+    ext=4
+    shift
+fi
 kmp=${3:-}
+ext=${4:+4}
 
 sve="changes.dat"
 bgi="moonwalker-background.jpg"
@@ -112,7 +118,7 @@ fi
 
 ################################################################################
 
-perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp}
+perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} ext:$ext
 fdisk -l /dev/${dev} >/dev/null || errexit
 echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
 perr "WARNING: all data on '/dev/$dev' will be LOST"
@@ -130,42 +136,69 @@ mkdir -p ${lpd} ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
-zcat ${mbr} >/dev/${dev}; waitdev ${dev}1
+if [ $ext -eq 4 ]; then
+    dd if=$(search $iso) bs=1M count=1 | if [ -n "$kmap" ]; then
+        sed -e "s,# kmap=br,kmap=$kmp  ,"; else dd; fi
+else
+    zcat ${mbr}
+fi >/dev/${dev}
+waitdev ${dev}1
+#fisk -l /dev/${dev}
 
 # Prepare partitions and filesystems
-mkfs.vfat -n Porteus /dev/${dev}1
-printf "n\np\n2\n\n\nw\n" | fdisk /dev/${dev}; waitdev ${dev}2
-mke4fs "Portdata" /dev/${dev}2
+if [ $ext -eq 4 ]; then
+    printf "d_n____+16M_t_17_a_n_____w_" |\
+        tr _ '\n' | fdisk /dev/${dev}
+    waitdev ${dev}2
+    mkfs.vfat -n EFIBOOT /dev/${dev}1
+    mke4fs "Porteus" /dev/${dev}2
+else
+    mkfs.vfat -n Porteus /dev/${dev}1
+    printf "n_p_2___w_" | tr _ '\n' |\
+        fdisk /dev/${dev}; waitdev ${dev}2
+    mke4fs "Portdata" /dev/${dev}2
+fi
 
 # Mount source and destination devices
-mkdir -p ${dst} ${src}; mount /dev/${dev}1 ${dst}
+mkdir -p ${dst} ${src};
+mount /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
 
 # Copying Porteus files from ISO file
-cp -arf ${src}/* ${dst}
-sync -f ${dst}${cfg} &
+cp -arf ${src}/boot ${src}/EFI ${dst}
+test -r ${dst}${cfg} || missing ${dst}${cfg}
+if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png;
+   then echo "INFO: custom boot screen background '${bsi}' copied"; fi
+sed -e "s,APPEND changes=/porteus$,&/${sve} ${kmp}," -i ${dst}${cfg}
+if [ $ext -eq 4 ]; then
+    umount ${dst}
+    mount /dev/${dev}2 ${dst}
+else
+    grep -n "changes=/porteus/${sve}" ${dst}${cfg}
+fi
+cp -arf ${src}/*.txt ${src}/porteus ${dst}
+sync -f ${dst}/*.txt &
 
 # Creating persistence loop filesystem
-dd if=/dev/zero count=1 seek=${blocks} of=${sve}
-mke4fs "changes" ${sve} ${journal}
+if [ $ext -eq 4 ]; then
+    lpd=${dst}/porteus/changes
+else
+    dd if=/dev/zero count=1 seek=${blocks} of=${sve}
+    mke4fs "changes" ${sve} ${nojournal}
+fi
 if test -n "${bsi}"; then
-    mount -o loop ${sve} ${lpd}
+    test $ext -eq 4 || mount -o loop ${sve} ${lpd}
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
     echo "INFO: custom background '${bgi}' copied"
-    umount ${lpd}
+    test $ext -eq 4 || umount ${lpd}
 fi
 
 # Moving persistence and configure it
 perr "INFO: waiting for fsdata synchronisation..."
 wait
-test -r ${dst}${cfg} || missing ${dst}${cfg}
-if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png;
-   then echo "INFO: custom boot screen background '${bsi}' copied"; fi
-sed -e "s,APPEND changes=/porteus$,&/${sve} ${kmp}," -i ${dst}${cfg}
-grep -n "changes=/porteus/${sve}" ${dst}${cfg}
-mv -f ${sve} ${dst}/porteus/
+test $ext -eq 4 || mv -f ${sve} ${dst}/porteus/
 
 # Umount source and eject USB device
 perr "INFO: waiting for umount synchronisation..."
