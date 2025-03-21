@@ -13,20 +13,20 @@ blocks="256K"
 
 ################################################################################
 
+function errexit() { echo; exit 1; }
+
 function perr() {
     { echo; echo "$@"; } >&2
 }
 
 function usage() {
     perr "USAGE: bash $shs /path/file.iso [/dev/]sdx [it]"
-    echo
-    exit 1
+    errexit
 }
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing, abort!"
-    echo
-    exit 1
+    errexit
 }
 
 function sure() {
@@ -35,7 +35,7 @@ function sure() {
     read -p "Are you sure to continue [N/y] " ans
     echo
     test "$ans" == "Y" -o "$ans" == "y" && return 0
-    exit 1 
+    errexit
 }
 
 function waitdev() {
@@ -45,8 +45,7 @@ function waitdev() {
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
-    echo
-    exit 1
+    errexit
 }
 
 function mke4fs() {
@@ -93,10 +92,10 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
 
-trap "echo;echo;exit 1" INT
+trap "echo; echo; exit 1" INT
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp}
-fdisk -l /dev/${dev} >/dev/null|| exit 1
+fdisk -l /dev/${dev} >/dev/null || errexit
 echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
 perr "WARNING: all data on '/dev/$dev' will be LOST"
 sure
@@ -107,8 +106,7 @@ umount /dev/${dev}? 2>/dev/null || true
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
-    echo
-    exit 1
+    errexit
 fi
 mkdir -p ${lpd} ${dst} ${src}
 declare -i tms=$(date +%s%N)
