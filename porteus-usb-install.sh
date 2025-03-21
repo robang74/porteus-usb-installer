@@ -51,8 +51,8 @@ function mke4fs() {
     mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
 }
 
-wdr=$(dirname $0)
-shs=$(basename $0)
+wdr=$(dirname "$0")
+shs=$(basename "$0")
 
 if [ "$(whoami)" != "root" ]; then
     perr "WARNING: the script '$shs' requires root priviledges"
@@ -76,7 +76,7 @@ lpd="/tmp/l"
 dst="/tmp/d"
 src="/tmp/s"
 
-test -b "/dev/$dev" || dev=$(basename $dev)
+test -b "/dev/$dev" || dev=$(basename "$dev")
 test -b "/dev/$dev" || usage
 test -r "$iso" || iso="$wdr/$iso"
 test -r "$iso" || usage
@@ -92,7 +92,7 @@ test -n "$kmp" && kmp="kmap=$kmp"
 
 trap "echo;echo;exit 1" INT
 
-perr "RUNNING: $shs $(basename $iso) into /dev/$dev" ${kmp:+with $kmp}
+perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp}
 fdisk -l /dev/${dev} >/dev/null|| exit 1
 echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
 perr "WARNING: all data on '/dev/$dev' will be LOST"
