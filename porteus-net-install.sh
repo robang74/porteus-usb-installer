@@ -5,6 +5,8 @@
 ################################################################################
 set -e
 
+USAGE="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
+
 # Script package to download and script name to execute
 zpkg="v0.2.6.tar.gz"
 repo="https://github.com/robang74/porteus-usb-installer"
@@ -25,7 +27,7 @@ function perr() {
 }
 
 function usage() {
-    perr "USAGE: bash $shs [type] [url] [arch] [vers] [/dev/sdx] [it]"
+    perr "USAGE: bash $shs $USAGE"
     errexit
 }
 

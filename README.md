@@ -6,7 +6,7 @@ It creates a bootable USB with 128MB of persistence.
 
 - Background image source: [Newsweek](https://www.newsweek.com/government-report-new-space-race-nasa-china-1736843)
 
-- Usage: `bash porteus-net-install.sh [type] [url] [arch] [vers] [/dev/sdx] [it]`
+- Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
    - when download the ISO and scripts is required.
 
 - Usage: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it]`

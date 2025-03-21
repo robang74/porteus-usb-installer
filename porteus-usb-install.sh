@@ -5,6 +5,8 @@
 ################################################################################
 set -e
 
+USAGE="/path/file.iso [/dev/]sdx [it]"
+
 # Comment this line below to have the journal within the persistence loop file
 journal="-O ^has_journal"
 
@@ -20,7 +22,7 @@ function perr() {
 }
 
 function usage() {
-    perr "USAGE: bash $shs /path/file.iso [/dev/]sdx [it]"
+    perr "USAGE: bash $shs $USAGE"
     errexit
 }
 
