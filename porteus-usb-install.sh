@@ -19,11 +19,13 @@ function perr() {
 
 function usage() {
     perr "USAGE: bash $shs /path/file.iso [/dev/]sdx [it]"
+    echo
     exit 1
 }
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing, abort!"
+    echo
     exit 1
 }
 
@@ -43,6 +45,7 @@ function waitdev() {
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
+    echo
     exit 1
 }
 
@@ -104,6 +107,7 @@ umount /dev/${dev}? 2>/dev/null || true
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
+    echo
     exit 1
 fi
 mkdir -p ${lpd} ${dst} ${src}
