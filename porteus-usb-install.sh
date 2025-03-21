@@ -64,13 +64,6 @@ if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
     exit
 fi
 
-if [ "$(whoami)" != "root" ]; then
-    perr "WARNING: the script '$shs' requires root priviledges"
-    echo
-    sudo bash $0 "$@"
-    exit $?
-fi
-
 ################################################################################
 
 trap "echo; echo; exit 1" INT
@@ -85,6 +78,9 @@ bsi="moonwalker-bootscreen.png"
 opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 cfg="/boot/syslinux/porteus.cfg"
 mbr="porteus-usb-bootable.mbr.gz"
+
+# RAF, TODO: here is better to use mktemp, instead
+#
 lpd="/tmp/l"
 dst="/tmp/d"
 src="/tmp/s"
@@ -102,6 +98,15 @@ test -f "$bgi" || bgi=""
 test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 test -n "$kmp" && kmp="kmap=$kmp"
+
+if [ "$(whoami)" != "root" ]; then
+    perr "WARNING: script '$shs' for '$dev' requires root priviledges"
+    echo
+# RAF: this could be annoying but it could also be an extra safety checkpoint
+#   sudo -k
+    sudo bash $0 "$@"
+    exit $?
+fi
 
 ################################################################################
 
