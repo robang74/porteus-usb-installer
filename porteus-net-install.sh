@@ -38,7 +38,6 @@ function sure() {
     local ans
     echo
     read -p "Are you sure to continue [N/y] " ans
-    echo
     ans=${ans:0:1}
     test "$ans" == "Y" -o "$ans" == "y" && return 0
     errexit
@@ -137,11 +136,13 @@ fi
 
 if [ "$DEVEL" == "1" ]; then
     rm -f $zpkg $wdr/$zpkg
-    printf "y\n" | download $zurl $zpkg
+    echo 'y' | download $zurl $zpkg
 else
     download $zurl $zpkg
 fi
 zpkg=$(search $zpkg)
+echo
+echo "Archive '$zpkg' extraction"
 echo
 tar xvzf $zpkg -C . --strip-components=1
 

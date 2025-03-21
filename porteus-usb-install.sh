@@ -33,7 +33,7 @@ function sure() {
     local ans
     echo
     read -p "Are you sure to continue [N/y] " ans
-    echo
+    ans=${ans:0:1}
     test "$ans" == "Y" -o "$ans" == "y" && return 0
     errexit
 }
