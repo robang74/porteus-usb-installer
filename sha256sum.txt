@@ -1,0 +1,2 @@
+1ea00128f987e89708e65c095bb0791a394518794c8ea22e954b150ee2a8ccfc  porteus-usb-bootable.mbr.gz
+69d6ddb679663824bb64689effba094b7b1a6b69ca148f380254a38036f4a163  porteus-usb-bootable.img.gz
