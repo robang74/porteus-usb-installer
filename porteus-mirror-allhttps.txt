@@ -1,0 +1,10 @@
+https://ftp.cc.uoc.gr/pub/linux/porteus/
+https://ftpmirror1.infania.net/mirror/porteus/
+https://ftp.nluug.nl/os/Linux/distr/porteus/
+https://ftp.riken.jp/Linux/porteus/
+https://ftp.vim.org/ftp/os/Linux/distr/porteus/
+https://linux.rz.rub.de/porteus/
+https://mirrors.dotsrc.org/porteus/
+https://mirror.yandex.ru/mirrors/porteus/
+https://www6.frugalware.org/mirrors/linux/porteus/
+https://www.mirrorservice.org/sites/dl.porteus.org/

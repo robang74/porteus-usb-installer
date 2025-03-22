@@ -9,6 +9,7 @@ wdr=$(dirname "$0")
 shs=$(basename "$0")
 usage_strn="[--clean]"
 
+mirror_list="porteus-mirror-allhttps.txt"
 mirror_file="porteus-mirror-selected.txt"
 netlog_file="porteus-mirror-selected.log"
 wgetlogtail="wget-log"
@@ -22,8 +23,9 @@ function usage() {
     eval "$@"
 }
 
-function rm_wget_log() { rm -f ??-$wgetlogtail; }
+function rm_wget_log() { rm -f $(wgetlogs_ls); }
 function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
+function wgetlogs_ls() { command ls -1 ??-$wgetlogtail; }
 
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
     usage echo
@@ -35,12 +37,14 @@ trap "echo; echo; exit 1" INT
 
 list=$(wget -qO- https://porteus.org/porteus-mirrors.html |\
     sed -ne 's,.*<a href="\([^"]*\)".*,\1,p')
-
-domlst=$(echo "$list" | cut -d/ -f3)
+list="$(cat $mirror_list 2>/dev/null ||:)
+$list"
+list=$(echo "$list" | sed -e "s,http:,https:," | sort | uniq)
+echo "$list" >$mirror_list
 
 echo
 printf "Sending one ping to all the mirrors, DNS caching ... "
-for i in $domlst; do
+for i in $(echo "$list" | cut -d/ -f3); do
     ping -w1 -W1 -c 1 -q $i &
 done >/dev/null 2>&1
 echo "done"
@@ -57,17 +61,23 @@ if ! isdevel; then
     for i in $list; do
         let n++ ||:
         fn=$(pn_wget_log $n)
+        url=$i/$arch/$vers/$dtst
         printf "%02d: $i\n" $n | tee $fn
-        wget -O- $i/$arch/$vers/$dtst >/dev/null 2>> $fn && wlst="$wlst
+        wget --timeout=1 -O- >/dev/null $url 2>>$fn && wlst="$wlst
 $i"
     done
 fi
 
-topl=$(grep written *$wgetlogtail | sed -e "s,:.*(\(.*\)).*,: \\1," | tr -d . |\
-    sed -e "s, MB/s,0 KB/s,"  | sort -rnk 2)
+# RAF: an alternative using dd which can be leveraged to cap the download size
+# wget --timeout=1 -qO- $url | dd bs=1500 count=5k iflag=fullblock of=/dev/null\
+#   2>&1 | sed -ne "/bytes/s/.* s, \(.*\)/\\1/p" | tr [gmk] [GMK]
+
+topl=$(grep "written" $(wgetlogs_ls)|\
+    sed -e "s,:.*(\(.*\)).*,: \\1," | tr -d . |\
+    sed -e "s, MB/s,0 KB/s," | sort -rnk 2)
 winr=$(echo "$topl" | head -n1)
 wfln=$(echo "$winr" | cut -d: -f1)
-strn=$(head -n1 $wfln | cut -d' ' -f2)
+strn=$(head -n1 "$wfln" | cut -d' ' -f2)
 winr=$(echo "$winr" | sed -e "s,-$wgetlogtail,,")
 echo
 echo "$topl"
@@ -76,11 +86,11 @@ echo "Fastest --> $strn <-- $winr"
 echo
 
 echo $strn | cut -d' ' -f2 > $mirror_file
-for i in $(ls -1 *$wgetlogtail); do
+for i in $(wgetlogs_ls); do
     cat $i; printf "===\n\n"
-done > $netlog_file
-isdevel 0 && rm_wget_log
-echo "Saved into '$mirror_file' file"
+done > $netlog_file; #rm_wget_log
+echo "updated '$mirror_file' file"
+echo "updated '$mirror_list' file"
 echo "created '$netlog_file' file"
 echo
 
