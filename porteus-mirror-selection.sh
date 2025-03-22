@@ -28,7 +28,7 @@ function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
     usage echo
 elif [ "x$1" == "x--clean" ]; then #############################################
-    rm_wget_log; rm -f $mirror_file $wgetlogtail; printf "\ndone.\n\n"
+    rm_wget_log; rm -f $mirror_file $netlog_file; printf "\ndone.\n\n"
 else ###########################################################################
 
 trap "echo; echo; exit 1" INT
