@@ -24,7 +24,8 @@ function usage() {
 }
 
 perr "download path: $download_path
-workingd path: $workingd_path"
+workingd path: $workingd_path
+"
 
 ################################################################################
 
@@ -43,17 +44,17 @@ workingd path: $workingd_path"
 # 0:./test.sh:2119407 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
 # 0:bash:1786462 ppid:11361 pcmd:/usr/libexec/gnome-terminal-server stat:11361 (gnome-terminal-) R 10402 113
 
-set -x
+# set -x
 ################################################################################
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
-    td="$download_path/tmp/"; mkdir -p "$td"; cp -f "$0" "$td/$shs"; pushd "$td"
-    bash $shs "$@" || exit $? && exit 0 & # busybox ash & may need explicit exit
-else #### Logic switches keep the line atomic, while goes in background with '&'
-fg 2>/dev/null || : # The fork above joins here for the sake of user interaction
+    d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
+    exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
+else
+    mkdir -p $download_path; pushd $download_path >/dev/null; perr "->pwd: $PWD"
 ################################################################################
-set +x
+# set +x
 
 # This values depend by external sources and [TODO] should be shared here
 mirror_file=${mirror_file:-porteus-mirror-selected.txt}
@@ -175,9 +176,6 @@ url="$uweb/porteus/$arch/$vers"
 
 ################################################################################
 
-if [ "$(basename $PWD)" != "$ddir" ]; then
-    mkdir -p $ddir; pushd $ddir
-fi
 declare -i tms=$(date +%s%N)
 
 download $url $shf
