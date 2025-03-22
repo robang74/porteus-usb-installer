@@ -50,7 +50,7 @@ Porteus version: **MATE**
 - Ubuntu uses Gnome3 and the 2nd most appreciated flavour is the Mate one.
 - Mate is based on Gnome2 and old PCs running Linux were usually adopting it.
 
-USB stick: **Samsung FIT+** from [64GB](https://ssd-tester.com/samsung_fit_plus_64gb.html)
+USB stick: **Samsung FIT plus** [64GB](https://ssd-tester.com/samsung_fit_plus_64gb.html)
 
 - It is very short, preventing USB port damage, essential for long-term use.
 - Despite its size it is quite generous in size and pretty fast with USB 3.1.
