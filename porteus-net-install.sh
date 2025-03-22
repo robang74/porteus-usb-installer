@@ -5,30 +5,25 @@
 ################################################################################
 set -e
 
-USAGE="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
+wdr=$(dirname "$0")
+shs=$(basename "$0")
+usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
 # Script package to download and script name to execute
-zpkg="v0.2.6.tar.gz"
+zpkg="v0.2.8.tar.gz"
 repo="https://github.com/robang74/porteus-usb-installer"
 zurl="$repo/archive/refs/tags"
 scrp="porteus-usb-install.sh"
 
-if [ "$DEVEL" == "1" ]; then
-   zurl="$repo/archive/refs/heads"
-   zpkg="main.tar.gz"
-fi
-
 ################################################################################
 
-function errexit() { echo; exit 1; }
-
-function perr() {
-    { echo; echo "$@"; } >&2
-}
+function isdevel() { test "$DEVEL" == "${1:-1}"; }
+function perr() { { echo; echo "$@"; } >&2; }
+function errexit() { echo; exit ${1:-1}; }
 
 function usage() {
-    perr "USAGE: bash $shs $USAGE"
-    errexit
+    perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
+    eval "$@"
 }
 
 function missing() {
@@ -93,18 +88,14 @@ function isocheck() {
     fi
 }
 
-################################################################################
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
+    usage echo
+else ###########################################################################
 
-wdr=$(dirname $0)
-shs=$(basename $0)
-
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
-    usage
-    echo
-    exit
+if isdevel; then
+   zurl="$repo/archive/refs/heads"
+   zpkg="main.tar.gz"
 fi
-
-################################################################################
 
 trap "echo; echo; exit 1" INT
 
@@ -167,4 +158,6 @@ if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
 else
     echo
 fi
+
+fi #############################################################################
 

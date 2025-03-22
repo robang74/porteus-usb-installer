@@ -5,7 +5,9 @@
 ################################################################################
 set -e
 
-USAGE="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
+wdr=$(dirname "$0")
+shs=$(basename "$0")
+usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
 # Comment this line below to have the journal within the persistence loop file
 nojournal="-O ^has_journal"
@@ -15,15 +17,13 @@ blocks="256K"
 
 ################################################################################
 
-function errexit() { echo; exit 1; }
-
-function perr() {
-    { echo; echo "$@"; } >&2
-}
+function isdevel() { test "$DEVEL" == "${1:-1}"; }
+function perr() { { echo; echo "$@"; } >&2; }
+function errexit() { echo; exit ${1:-1}; }
 
 function usage() {
-    perr "USAGE: bash $shs $USAGE"
-    errexit
+    perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
+    eval "$@"
 }
 
 function missing() {
@@ -67,18 +67,9 @@ function search() {
     return 1
 }
 
-################################################################################
-
-wdr=$(dirname "$0")
-shs=$(basename "$0")
-
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
-    usage
-    echo
-    exit
-fi
-
-################################################################################
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
+    usage echo
+else ###########################################################################
 
 trap "echo; echo; exit 1" INT
 
@@ -106,9 +97,9 @@ dst="/tmp/d"
 src="/tmp/s"
 
 test -b "/dev/$dev" || dev=$(basename "$dev")
-test -b "/dev/$dev" || usage
+test -b "/dev/$dev" || usage errexit
 test -r "$iso" || iso="$wdr/$iso"
-test -r "$iso" || usage
+test -r "$iso" || usage errexit
 
 test -r "$bsi" || bsi="$wdr/$bsi"
 test -f "$bsi" || bsi=""
@@ -123,7 +114,7 @@ if [ "$(whoami)" != "root" ]; then
     perr "WARNING: script '$shs' for '/dev/$dev' requires root priviledges"
     echo
 # RAF: this could be annoying but it could also be an extra safety checkpoint
-#   sudo -k
+    test "$DEVEL" == "1" ||  sudo -k
     sudo bash $0 "$@"
     exit $?
 fi
@@ -228,3 +219,6 @@ echo "INFO: Installation completed in $tms seconds"
 echo
 echo "DONE: bootable USB key ready to be removed safely"
 echo
+
+fi #############################################################################
+
