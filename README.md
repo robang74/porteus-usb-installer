@@ -11,7 +11,7 @@ It creates a bootable USB with 128MB of persistence.
    - long option creates a USB bootable installation instead of a LIVE.
 
 - Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
-   - when downloading the ISO and retrieve this repo scripts is needed.
+   - when downloading the ISO and retrieving this repo scripts is needed.
 
 - Usage: `bash porteus-mirror-selection.sh [--clean]`
    - check among the available mirrors the fastest one for downloading.  
@@ -96,7 +96,7 @@ Then we can put that USB into a laptop/PC, boot in all-in-memory mode, clone the
 
 When that file is copied into the VFAT32, then the holes are filled with zeros, hopefully. In fact, `cp` is supposed to not access the underlying physical device unless the kernel allocated blocks into the file instead of holes. This implies that we do not need extra 512Mb of free memory (or 128Mb per the last v0.2.5 version) to create those files but much less (c.a. 10Mb). While `/boot` `/syslinux` and `/porteus` folders are - supposedly - loaded in RAM, so we can rewrite the USB stick reading from the RAM filesystem.
 
-If you like to know more about future planning, read the [BOFH as life style manifesto](bofh-as-life-style-manifesto.txt).
+If you would like to know more about future planning, read the [BOFH as lifestyle manifesto](bofh-as-life-style-manifesto.txt).
 
 ---
 
@@ -108,7 +108,6 @@ Are you more of an embedded guy/girl? In this case, I suggest [TinyCore](http://
 
 ### Copyright
 
-(C) 2025, Roberto A. Foglietta &lt;roberto.foglietta@gmail.com&gt;, licenced under BSD 3-clauses terms.
+(C) 2025, Roberto A. Foglietta &lt;roberto.foglietta@gmail.com&gt;, licensed under BSD 3-clauses terms.
 
 **Note**: the boot screen image, also used for background, is included here as per *fair-use* terms, only.
-
