@@ -5,18 +5,10 @@
 ################################################################################
 set -e
 
+ddir="downloads"
 wdr=$(dirname "$0")
 shs=$(basename "$0")
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
-
-# Script package to download and script name to execute
-zpkg="v0.2.8.tar.gz"
-repo="https://github.com/robang74/porteus-usb-installer"
-zurl="$repo/archive/refs/tags"
-scrp="porteus-usb-install.sh"
-ddir="downloads"
-
-################################################################################
 
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
 function perr() { { echo; echo "$@"; } >&2; }
@@ -27,6 +19,47 @@ function usage() {
     eval "$@"
 }
 
+################################################################################
+
+# echo '#!/bin/bash
+# stat=$(head -c35 /proc/$PPID/stat)
+# pcmd=$(echo $(strings /proc/$PPID/cmdline))
+# echo 0:$0:$$ ppid:$PPID pcmd:$pcmd stat:$stat
+# ' | tee test.sh | grep -v .; chmod a+x test.sh
+# cmd=$(echo $(strings /proc/$$/cmdline))
+# echo me cmd:$$:$cmd; cat test.sh | bash
+# bash test.sh; ./test.sh; source test.sh
+
+# me cmd:1786462:bash
+# 0:bash:2119399 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
+# 0:test.sh:2119403 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
+# 0:./test.sh:2119407 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
+# 0:bash:1786462 ppid:11361 pcmd:/usr/libexec/gnome-terminal-server stat:11361 (gnome-terminal-) R 10402 113
+
+################################################################################
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
+    usage echo
+elif [ "$(basename $wdr)" == "$ddir" ]; then # Avoid to overwrite myself #######
+    mkdir -p tmp
+    cp -f $0 tmp/$shs
+    bash tmp/$shs "$@" || exit $? && exit & # busybox ash may need explicit exit
+else #### Logic switches keep the line atomic, while goes in background with '&'
+fg 2>/dev/null || : # The fork above joins here for the sake of user interaction
+################################################################################
+
+# This values depend by external sources and [TODO] should be shared here
+mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+sha256_file=${sha256_file:-sha256sums.txt}
+
+# Script package to download and script name to execute
+zpkg="v0.2.8.tar.gz"
+repo="https://github.com/robang74/porteus-usb-installer"
+zurl="$repo/archive/refs/tags"
+scrp="porteus-usb-install.sh"
+
+################################################################################
+
 function missing() {
     perr "ERROR: file '${1:-}' is missing, abort!"
     errexit
@@ -34,11 +67,8 @@ function missing() {
 
 function sure() {
     local ans
-    echo
-    read -p "Are you sure to continue [N/y] " ans
-    ans=${ans:0:1}
-    test "$ans" == "Y" -o "$ans" == "y" && return 0
-    errexit
+    echo; read -p "${1:-Are you sure to continue}? [N/y] " ans
+    ans=${ans^^}; test "${ans:0:1}" == "Y" || return 1
 }
 
 function waitdev() {
@@ -74,7 +104,7 @@ function download() {
         if [ ! -n "$opt" ]; then search "$f" >/dev/null && continue; fi
         echo
         echo "Downloading file: $f"
-        sure
+        sure || errexit
         wget -q --show-progress $opt $url/$f || errexit
     done
 }
@@ -89,9 +119,7 @@ function isocheck() {
     fi
 }
 
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
-    usage echo
-else ###########################################################################
+################################################################################
 
 if isdevel; then
    zurl="$repo/archive/refs/heads"
@@ -109,18 +137,39 @@ if echo "$1" | grep -qe "^/dev/"; then
     fi
 fi
 
+# RAF: while true w/break avoid nesting too much and avoid the use of exit
+#      avoiding explicit exit, is a good idea when `source` a `set -e` .sh.
+while true; do
+    test -n "$2" -o -r $mirror_file && break
+    perr "WARNING: no any mirror selected, using '$mirror_dflt'"
+    sure "Do you want to check for the fastest mirror available" || break
+    script=$(search porteus-mirror-selection.sh)
+    if [ ! -r "$script" ]; then
+        perr "WARNING: the script '$script' is missng"
+        sure "Do you want to download it from github" || break
+        script=$(search porteus-mirror-selection.sh)
+    fi
+    bash $script
+    break
+done
+
 type=${1^^}
 type=${type:-MATE}
-#uweb=${2:-https://linux.rz.rub.de}
-uweb=${2:-https://mirrors.dotsrc.org}
+uweb=${2:-$(cat $mirror_file 2>/dev/null ||:)}
+uweb=${uweb:-$mirror_dflt}
 arch=${3:-x86_64}
 vers=${4:-current}
 bdev=$5
 lang=$6
-shf="sha256sums.txt"
+
+shf=$sha256_file
 url="$uweb/porteus/$arch/$vers"
 
-mkdir -p $ddir; pushd $ddir
+################################################################################
+
+if [ "$(basename $PWD)" != "$ddir" ]; then
+    mkdir -p $ddir; pushd $ddir
+fi
 declare -i tms=$(date +%s%N)
 
 download $url $shf
