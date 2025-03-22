@@ -1,6 +1,6 @@
 ## Porteus live USB bootable installer
 
-It creates a bootable USB with 128MB of persistence. 
+It creates a bootable USB with 128MB for persistence.
 
 - Porteus root password: **toor**
 
@@ -20,7 +20,21 @@ The v0.2.0 has been reported that it works also for [PorteuX](https://github.com
 
 ---
 
-### Preview
+### Persistence vs Installation
+
+<div align="justify">
+
+> Persistence means that any changes you make to the system (like installing software, saving files, or changing settings) will be saved and available the next time you boot from the USB drive. Without persistence, the system would revert to its original state each time. Installation is a process designed to create a permanent and independent operating environment while a [LIVE](https://en.wikipedia.org/wiki/Live_USB) is running into the computer's RAM, mainly. This allows users to run an OS without modifying the host system's storage. Persistence, is a bridge between the two concepts. &ndash;&nbsp;Gemini&nbsp;2
+
+</div>
+
+---
+
+### Preview on 13yo laptop
+
+The ThinkPad X220 was released in April 2011 and was produced until mid-to-late 2012, when it was replaced by the ThinkPad X230. Today, it is a 13yo device and can be bought for around $100 as refurbished or used unit, only. Old but not obsolete.
+
+In fact, it supports SATA2 SSD and 16GB of DDR3 RAM despite its specification indicates 8GB as maximum. While models with the i7-2620M typically include USB 3.0 support, also. However, usually it comes with 4GB of RAM, a 2.5" SATA HDD and USB 2.0, only. 
 
 Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and running on an ultra-old Thinkpad X220 equipped with 4GB of RAM. The storage stick is inserted in the USB 2.0 port, on the bottom left angle, and it is so short that it cannot even be seen without checking for it specifically for it.
 
