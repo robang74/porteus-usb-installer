@@ -14,6 +14,7 @@ zpkg="v0.2.8.tar.gz"
 repo="https://github.com/robang74/porteus-usb-installer"
 zurl="$repo/archive/refs/tags"
 scrp="porteus-usb-install.sh"
+ddir="downloads"
 
 ################################################################################
 
@@ -119,7 +120,7 @@ lang=$6
 shf="sha256sums.txt"
 url="$uweb/porteus/$arch/$vers"
 
-mkdir -p porteus; pushd porteus
+mkdir -p $ddir; pushd $ddir
 declare -i tms=$(date +%s%N)
 
 download $url $shf
