@@ -8,6 +8,10 @@ set -e
 ddir="downloads"
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+export download_path=${download_path:-$PWD/$ddir}
+export workingd_path=$(dirname $(realpath "$0"))
+
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
@@ -18,6 +22,9 @@ function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
+
+perr "download path: $download_path
+workingd path: $workingd_path"
 
 ################################################################################
 
@@ -36,16 +43,17 @@ function usage() {
 # 0:./test.sh:2119407 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
 # 0:bash:1786462 ppid:11361 pcmd:/usr/libexec/gnome-terminal-server stat:11361 (gnome-terminal-) R 10402 113
 
+set -x
 ################################################################################
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
-elif [ "$(basename $wdr)" == "$ddir" ]; then # Avoid to overwrite myself #######
-    mkdir -p tmp
-    cp -f $0 tmp/$shs
-    bash tmp/$shs "$@" || exit $? && exit & # busybox ash may need explicit exit
+elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
+    td="$download_path/tmp/"; mkdir -p "$td"; cp -f "$0" "$td/$shs"; pushd "$td"
+    bash $shs "$@" || exit $? && exit 0 & # busybox ash & may need explicit exit
 else #### Logic switches keep the line atomic, while goes in background with '&'
 fg 2>/dev/null || : # The fork above joins here for the sake of user interaction
 ################################################################################
+set +x
 
 # This values depend by external sources and [TODO] should be shared here
 mirror_file=${mirror_file:-porteus-mirror-selected.txt}
