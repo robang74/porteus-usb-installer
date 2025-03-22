@@ -3,6 +3,8 @@
 # (C) 2025, Roberto A. Foglietta <roberto.foglietta@gmail.com> - 3-clause BSD
 #
 ################################################################################
+set +o noclobber
+set +u
 set -e
 
 ddir="downloads"
@@ -15,7 +17,7 @@ export workingd_path=$(dirname $(realpath "$0"))
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
-function perr() { { echo; echo "$@"; } >&2; }
+function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
 function usage() {
@@ -23,9 +25,7 @@ function usage() {
     eval "$@"
 }
 
-perr "download path: $download_path
-workingd path: $workingd_path
-"
+isdevel && perr "download path: $download_path\nworkingd path: $workingd_path"
 
 ################################################################################
 
@@ -52,7 +52,9 @@ elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
     exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
 else
-    mkdir -p $download_path; pushd $download_path >/dev/null; perr "->pwd: $PWD"
+    mkdir -p "$download_path"
+    pushd "$download_path" >/dev/null
+    perr "-> pwd: $PWD"
 ################################################################################
 # set +x
 
