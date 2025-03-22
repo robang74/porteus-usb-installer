@@ -64,10 +64,14 @@ mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
 sha256_file=${sha256_file:-sha256sums.txt}
 
 # Script package to download and script name to execute
-zpkg="v0.2.8.tar.gz"
+rver="v0.2.8"
+zpkg="$rver.tar.gz"
 repo="https://github.com/robang74/porteus-usb-installer"
-zurl="$repo/archive/refs/tags"
-scrp="porteus-usb-install.sh"
+rawu="https://raw.githubusercontent.com/robang74/porteus-usb-installer/"
+mirrors_script_name="porteus-mirror-selection.sh"
+usbinst_script_name="porteus-usb-install.sh"
+zpkg_url="$repo/archive/refs/tags"
+rawc_url="$rawu/refs/tags/$rver"
 
 ################################################################################
 
@@ -115,8 +119,11 @@ function download() {
         if [ ! -n "$opt" ]; then search "$f" >/dev/null && continue; fi
         echo
         echo "Downloading file: $f"
-        sure || errexit
-        wget -q --show-progress $opt $url/$f || errexit
+        sure "${sure_string}" || errexit
+        if ! wget -q --show-progress $opt $url/$f; then
+            perr "ERROR: downloading '$f', abort!"
+            errexit
+        fi
     done
 }
 
@@ -133,7 +140,8 @@ function isocheck() {
 ################################################################################
 
 if isdevel; then
-   zurl="$repo/archive/refs/heads"
+   zpkg_url="$repo/archive/refs/heads"
+   rawc_url="$repo/refs/heads/main"
    zpkg="main.tar.gz"
 fi
 
@@ -154,11 +162,13 @@ while true; do
     test -n "$2" -o -r $mirror_file && break
     perr "WARNING: no any mirror selected, using '$mirror_dflt'"
     sure "Do you want to check for the fastest mirror available" || break
-    script=$(search porteus-mirror-selection.sh)
+    fname=${mirrors_script_name}
+    script=$(search $fname ||:)
     if [ ! -r "$script" ]; then
-        perr "WARNING: the script '$script' is missng"
-        sure "Do you want to download it from github" || break
-        script=$(search porteus-mirror-selection.sh)
+        perr "WARNING: the script '$fname' is missng"
+        sure_string="Do you want to download it from github" \
+            download ${rawc_url} $fname
+        script=$(search $fname || missing $fname)
     fi
     bash $script
     break
@@ -173,15 +183,15 @@ vers=${4:-current}
 bdev=$5
 lang=$6
 
-shf=$sha256_file
-url="$uweb/porteus/$arch/$vers"
+prt=; test "$(basename $uweb)" == "porteus" || prt="porteus"
+url=$(echo "$uweb/$prt/$arch/$vers" | sed -e "s,http:,https:,")
 
 ################################################################################
 
 declare -i tms=$(date +%s%N)
 
-download $url $shf
-shf=$(search $shf)
+download $url $sha256_file
+shf=$(search $sha256_file)
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
@@ -197,9 +207,9 @@ fi
 
 if [ "$DEVEL" == "1" ]; then
     rm -f $zpkg $wdr/$zpkg
-    echo 'y' | download $zurl $zpkg
+    echo 'y' | download ${zpkg_url} $zpkg
 else
-    download $zurl $zpkg
+    download ${zpkg_url} $zpkg
 fi
 zpkg=$(search $zpkg)
 echo
@@ -211,6 +221,7 @@ tar xvzf $zpkg -C . --strip-components=1
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
+scrp=${usbinst_script_name}
 if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
     bash $scrp $iso $bdev $lang
 else
