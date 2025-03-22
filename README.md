@@ -13,7 +13,7 @@ It creates a bootable USB with 128MB of persistence.
 - Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
    - when downloading the ISO and retrieve this repo scripts is needed.
 
-- Usage: `bash porteus-mirror-selection.sh`
+- Usage: `bash porteus-mirror-selection.sh [--clean]`
    - check among the available mirrors the fastest one for downloading.  
 
 The v0.2.0 has been reported that it works also for [PorteuX](https://github.com/porteux/porteux) but I did not test it and I am not granting the compatibility for the future.
