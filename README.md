@@ -100,20 +100,22 @@ Installation tested:
 
 ### Usage, quick & dirty
 
-This little script download and immediately put in esecution the network installation. Which download the default ISO (mate) and the script and all the stuff from this repository.
+This little script downloads and immediately puts in execution the network installation. Which download the default ISO (mate) and the script and all the stuff from this repository.
 
 ```
-mkdr -p usbtest; cd usbtest
-tagver="v0.2.9" # To replace with the lastest available in tags
+mkdir -p usbtest; cd usbtest
+tagver="v0.2.9" # To replace with the latest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
 DEVEL=0 # bash -i <(wget -qO- $net_inst_url)
 ```
 
-At this point everything is ready to write the USB stick for having the desidered installation. It can be done by the USB installation script which requires `root` privileges. Because mistakes happen, the most safe way to proceed is to create a bootable USB stick in the way your used to and transfer all the stuff into another USB stick.
+At this point everything is ready to write the USB stick for having the desidered installation. It can be done by the USB installation script which requires `root` privileges. Because mistakes happen, the most safe way to proceed is to create a bootable USB stick in the way you're used to and transfer all the stuff into another USB stick.
 
-Booting Porteus in RAM-only (Flash) mode, it will be possible execute the scripts on the 2nd USB stick to install on the first which will be erased, or another one. In the future a 2nd USB key it would not necessary. A specific script will do everything in a RAM-only (Flash) running Porteuse, zeroing every risk.
+Booting Porteus in RAM-only (Flash) mode, it will be possible to execute the scripts on the 2nd USB stick to install on the first which will be erased, or another one. In the future a 2nd USB key would not be necessary. A specific script will do everything in a RAM-only (Flash) running Porteuse, zeroing every risk.
+
+If &ndash; **for you** &ndash; that script above did nothing, then it is ok in that way: do not use it. ;-)
 
 ---
 
@@ -121,7 +123,7 @@ Booting Porteus in RAM-only (Flash) mode, it will be possible execute the script
 
 The script requires `bash` because it uses bashims. This should change in future, because I want to make it working also with busybox `a/sh`. Plus, before moving to try it on different systems than my laptop, I wish to create a net-installer that downloads all my stuff and the ISO and does the magic. This make sense because Porteus has the all-in-memory mode so we can download the ISO and write it directly on as USB:
 
-- `wget -O- $url | sudo dd bs=1M of=/dev/sdb`
+- `wget -O- $url | sudo dd bs=1M of=/dev/sdx`
 
 Then we can put that USB into a laptop/PC, boot in all-in-memory mode, clone the git and re-write that USB within a safe environment. Which is the reason because `dd` uses the `seek` option creating a virtual file that does not waste space, in evoluted filesystem that allows holes into files, at least.
 
