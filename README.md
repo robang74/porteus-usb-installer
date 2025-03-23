@@ -54,6 +54,8 @@ How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds wit
 
 4. The size of the persistent loop file has been set to 128Mb in such a way there will be 430MB c.a. of free space to install optional modules. As much as the whole Porteus base.
 
+5. With `--ext4-install`, the EFI boot partition size is 16 MB and remains 4 MB free by default with Porteus 5.01. It contains iso/syslinux and lilo stuff, the kernel and initrd.
+
 ---
 
 ### Suggested choices
@@ -82,21 +84,17 @@ Data encryption:
 - It is suggested for privacy when an external USB is used for personal needs.
 - It is mandatory when we expect, even occasionally, to bring it out with us.
 
----
+Download mirrors list:
 
-### Download mirrors list
+- [porteus.org/porteus-mirrors.html](https://porteus.org/porteus-mirrors.html)
 
-- https://porteus.org/porteus-mirrors.html
+- [porteus-mirror-allhttps.txt](porteus-mirror-allhttps.txt) (local)
 
-- https://linux.rz.rub.de/porteus/x86_64/current
+Installation tested:
 
----
+- [Porteus-MATE-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-MATE-v5.01-x86_64.iso) (mainly)
 
-### Tested installing
-
-- [Porteus-MATE-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-MATE-v5.01-x86_64.iso)  (mainly)
-
-- [Porteus-LXQT-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-LXQT-v5.01-x86_64.iso)
+- [Porteus-LXQT-v5.01-x86_64.iso](https://linux.rz.rub.de/porteus/x86_64/current/Porteus-LXQT-v5.01-x86_64.iso) (for QT lovers)
 
 ---
 
