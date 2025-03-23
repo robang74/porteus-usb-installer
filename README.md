@@ -100,11 +100,11 @@ Installation tested:
 
 ### Usage, quick & dirty
 
-This little script downloads and immediately puts in execution the network installation. Which download the default ISO (mate) and the script and all the stuff from this repository.
+This little script downloads and immediately puts in execution the network installation . Which download the MATE version of the official Porteus ISO and a compressed archive of this repository chosen from [tags](https://github.com/robang74/porteus-usb-installer/tags) available.
 
 ```
 mkdir -p usbtest; cd usbtest
-tagver="v0.2.9" # To replace with the latest available in [tags](https://github.com/robang74/porteus-usb-installer/tags)
+tagver="v0.2.9" # To replace with the latest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
