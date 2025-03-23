@@ -19,6 +19,11 @@ export workingd_path=$(dirname $(realpath "$0"))
 
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
+# This values depend by external sources and [TODO] should be shared here
+mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+sha256_file=${sha256_file:-sha256sums.txt}
+
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
 function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
@@ -47,7 +52,7 @@ echo me cmd:$$:$cmd; bash -i <(cat test.sh)
 # 0:/dev/fd/62:2170760 ppid:2170724 pcmd:bash /dev/fd/63
 #                      stat:2170724 (bash) S 1786462 2170724 17
 
-tagver="v0.2.8" # To replace with the lastest available in tags
+tagver="v0.2.9" # To replace with the lastest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
@@ -67,23 +72,6 @@ else
     pushd "$download_path" >/dev/null
     perr "-> pwd: $PWD"
 # set +x
-################################################################################
-
-# This values depend by external sources and [TODO] should be shared here
-mirror_file=${mirror_file:-porteus-mirror-selected.txt}
-mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
-sha256_file=${sha256_file:-sha256sums.txt}
-
-# Script package to download and script name to execute
-rver="v0.2.8"
-zpkg="$rver.tar.gz"
-repo="https://github.com/robang74/porteus-usb-installer"
-rawu="https://raw.githubusercontent.com/robang74/porteus-usb-installer/"
-mirrors_script_name="porteus-mirror-selection.sh"
-usbinst_script_name="porteus-usb-install.sh"
-zpkg_url="$repo/archive/refs/tags"
-rawc_url="$rawu/refs/tags/$rver"
-
 ################################################################################
 
 function missing() {
@@ -154,13 +142,47 @@ function isocheck() {
     fi
 }
 
+function wget_last_tag() {
+    wget -qO - "$1/tags" | sed -ne "s,.*/refs/tags/\(.*\)\.zip.*,\\1,p"|\
+        sort -rn | head -n1 | grep .
+}
+
 ################################################################################
 
+# Deciding which version download from the repo
+
+user="robang74"
+proj="porteus-usb-installer"
+repo="https://github.com/$user/$proj"
+rawu="https://raw.githubusercontent.com/$user/$proj"
+
+tagver="v0.2.9"
+reftyp="tags"
+
 if isdevel; then
-   zpkg_url="$repo/archive/refs/heads"
-   rawc_url="$repo/refs/heads/main"
-   zpkg="main.tar.gz"
+   tagver="main"
+   reftyp="heads"
+else
+    agree "WARNING: script suggests '$tagver' as last tagged, check for updates"
+    tagnew=$(wget_last_tag $repo)
+    if [ -n "$tagnew" ]; then
+        tagver=$tagnew
+        perr "-> tag: $tagver"
+    else
+        perr "WARNING: updates check failed, going with '$tagver' as default"
+    fi
 fi
+
+# Script package to download and script names to execute
+
+zpkg="$tagver.tar.gz"
+zpkg_url="$repo/archive/refs/$reftyp"
+rawc_url="$rawu/refs/$reftyp/$tagver"
+
+mirrors_script_name="porteus-mirror-selection.sh"
+usbinst_script_name="porteus-usb-install.sh"
+
+################################################################################
 
 trap "echo; echo; exit 1" INT
 
@@ -187,7 +209,7 @@ while true; do
             download ${rawc_url} $fname
         script=$(search $fname || missing $fname)
     fi
-    bash $script
+    bash $script && echo "done."
     break
 done
 
@@ -239,7 +261,7 @@ echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
 echo
-echo ">>>>  Directory '$ddir' populated: $(du -ms . | tr -cd [0-9]) MB"
+echo "->  Directory '$ddir' populated: $(du -ms . | tr -cd [0-9]) MB"
 scrp=${usbinst_script_name}
 if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
     bash $scrp $iso $bdev $lang
