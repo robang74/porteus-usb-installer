@@ -271,7 +271,8 @@ if test "$DEVEL" == "ondemand" || isondemand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"
-    unsure && bash ${download_path}/${usbinst_script_name} --on-demand
+    unsure && \
+        exec bash ${download_path}/${usbinst_script_name} --on-demand
 elif [ -r "${usbinst_script_name}" -a -n "$bdev" ]; then
     bash ${usbinst_script_name} $iso $bdev $lang
 else
