@@ -133,6 +133,18 @@ If you would like to know more about future planning, read the [BOFH as lifestyl
 
 ---
 
+### On-demand USB live image
+
+Why in 2025 we are still busy with ISO? Instead of having an on-demand USB bootable maker? What is necessary to have it? Under the DIY PoV, every device that makes sense to use despite its age is currently able to create an USB bootable (or install into an internal storage unit) a Linux live. Every device like an X220 can be turned into a Kiosk for such a task.
+
+So, the first thing we need is a lightweight graphical - even running of framebuffer - operative system like [TinyCore](http://tinycorelinux.net/downloads.html). A lightweight browser like [Dillo](https://dillo-browser.github.io) would be enough to let the user cope with a simple HTML form that guides them to configure on-demand the installation.
+
+At this point, we need to have a list of core components and a recipe to put all together. Which is the reason I developed this set of scripts. The next step is to provide a network connection to the Kiosk and while Wi-Fi is the easiest way especially using a smartphone like a router, usually the Wi-Fi card is a pain because proprietary firmware.
+
+However, those USB dongle based on RTL8188 at 150 MBit/s - which were usually to find in Raspberry Pi kits - are almost universally supported by Linux. Having two USB 2.0 ports available is not a strict constraints: in one the Wi-Fi dongle ($2) and in the other a USB stick ($12) and the installation can start. Considering $1 of postal stamp, it sum-ups to $15.
+
+---
+
 ### Embedded systems
 
 Are you more of an embedded guy/girl? In this case, I suggest [TinyCore](http://tinycorelinux.net/) Linux rather than Porteus which is more suitable for old hardware and kiosk systems. In particular, [TinyCore Editor](https://github.com/robang74/tinycore-editor) can serve you as a non-certifiable by design but functioning proof-of-concept system editor.
