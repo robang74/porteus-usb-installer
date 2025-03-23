@@ -77,6 +77,7 @@ Full installation:
 - Using `--ext4-install` implies that writing data is going to be a routine.
 - The [256GB](https://ssd-tester.com/samsung_fit_plus_256gb.html) for a physical EXT4 persistence is 3x faster in WR on USB 3.x.
 - If SATA2+ is available, at half of the price a 240GB+ [SSD](https://ssd-tester.com/sata_ssd_test.php?sort=250+GB) is another 3x faster.
+- If USB 3.x then a SATA [adapter](https://raw.githubusercontent.com/robang74/porteus-usb-installer/refs/heads/main/img/usb3-sata3-adapter-with-plastic-case.webp) w/ABS case ($4) is faster, cheaper & easier.
 
 Data encryption:
 
