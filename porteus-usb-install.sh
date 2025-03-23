@@ -29,7 +29,7 @@ function usage() {
 }
 
 function missing() {
-    perr "ERROR: file '${1:-}' is missing, abort!"
+    perr "ERROR: file '${1:-}' is missing or wrong type, abort!"
     errexit
 }
 
@@ -69,6 +69,26 @@ function search() {
     return 1
 }
 
+function check_dmsg_for_last_attached_scsi() {
+    local str lst dev=$1
+    str=$(dmesg | grep "] sd .* removable disk" | tail -n1)
+    lst=$(echo "$str" | sed -ne "s,.*\[\(sd.\)\].*,\\1,p")
+    if [ ! -n "$lst" ]; then
+        str=$(sudo dmesg | grep "\[sd[a-z]\] .* removable disk" | tail -n1)
+        lst=$(echo "$str" | sed -ne "s,.*\[\(sd.\)\].*,\\1,p")
+    fi
+    if [ ! -n "$lst" ]; then
+        perr "WARNING: to write on '/dev/$dev' but unable to find the last attached unit"
+        sure
+    elif [ "$lst" != "$dev" ]; then
+        perr "WARNING: to write on '/dev/$dev' but '/dev/$lst' is the last attached unit"
+        perr "$str"
+        sure
+    else
+        perr "$str"
+    fi
+}
+
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
     usage echo
 else ###########################################################################
@@ -94,22 +114,24 @@ mbr="porteus-usb-bootable.mbr.gz"
 
 # RAF, TODO: here is better to use mktemp, instead
 #
-lpd="/tmp/l"
-dst="/tmp/d"
-src="/tmp/s"
+dst="/tmp/usb"
+src="/tmp/iso"
 
 test -b "/dev/$dev" || dev=$(basename "$dev")
-test -b "/dev/$dev" || usage errexit
+test -b "/dev/$dev" || missing "/dev/$dev"
+
 test -r "$iso" || iso="$wdr/$iso"
-test -r "$iso" || usage errexit
+test -r "$iso" || missing "$iso"
 
 test -r "$bsi" || bsi="$wdr/$bsi"
 test -f "$bsi" || bsi=""
+
 test -r "$bgi" || bgi="$wdr/$bgi"
 test -f "$bgi" || bgi=""
 
 test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
+
 test -n "$kmp" && kmp="kmap=$kmp"
 
 if [ "$(whoami)" != "root" ]; then
@@ -127,7 +149,7 @@ perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} ext:$ex
 fdisk -l /dev/${dev} >/dev/null || errexit
 echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
 perr "WARNING: all data on '/dev/$dev' will be LOST"
-sure
+sure && check_dmsg_for_last_attached_scsi "$dev"
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
@@ -137,7 +159,7 @@ if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
     errexit
 fi
-mkdir -p ${lpd} ${dst} ${src}
+mkdir -p ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
@@ -191,7 +213,8 @@ else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve}
     mke4fs "changes" ${sve} ${nojournal}
     mkdir -p ${dst}/porteus/
-    mv -f ${sve} ${dst}/porteus/
+    cp -f ${sve} ${dst}/porteus/
+    rm -f ${sve}
     #sync ${dst}/*.txt &
 fi
 
@@ -210,7 +233,8 @@ perr "INFO: waiting for umount synchronisation..."
 #wait
 umount ${src}
 umount ${dst}
-fsck -yf /dev/${dev}2 || true
+echo; fsck -yf /dev/${dev}1 || true
+echo; fsck -yf /dev/${dev}2 || true
 eject /dev/${dev}
 
 # Say goodbye and exit
