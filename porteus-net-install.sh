@@ -237,6 +237,8 @@ tar xvzf $zpkg -C . --strip-components=1
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
+echo
+echo ">>>>  Directory '$ddir' populated: $(du -ms . | tr -cd [0-9]) MB"
 scrp=${usbinst_script_name}
 if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
     bash $scrp $iso $bdev $lang
