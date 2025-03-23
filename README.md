@@ -48,7 +48,7 @@ How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds wit
 
 1. The script is not executable by default, hence it requires to be run by a shell. An extra caution: even if it requires root password, the session could be already on sudo or root.
 
-2. I decided to go without a journal within the persistent loop file because it is saved on a VFAT. It is faster and stresses the USB key less, and thus increases its durability.
+2. I [decided](https://chatgpt.com/share/67e01ea8-a0f4-8012-9178-48d1c76337e9) to go without a journal within the persistent loop file because it is saved on a VFAT. It is faster and stresses the USB key less, and thus increases its durability.
 
 3. The size of the first partition into the MBR is too big to fit a common 1GB usbkey which is usually 10^9 bytes eq. to 1.953.125 blocks. Thus a 2GB usbkey is the min. required.
 
