@@ -61,6 +61,7 @@ if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
     exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
+    perr "ERROR: exec fails or a bug hits here, abort!"; errexit -1 # eventually
 else
     mkdir -p "$download_path"
     pushd "$download_path" >/dev/null
