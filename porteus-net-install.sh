@@ -7,23 +7,21 @@ set +o noclobber
 set +u
 set -e
 
+ddir="moonwalker"
+usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
+
 wdr=$(dirname "$0")
 shs=$(basename "$0")
 
-ddir="downloads"
-echo $0 | grep -q /dev/fd/ &&\
-    ddir="porteus.raf"
-
-export download_path=${download_path:-$PWD/$ddir}
-export workingd_path=$(dirname $(realpath "$0"))
-
-usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
-
 # This values depend by external sources and [TODO] should be shared here
-mirror_file=${mirror_file:-porteus-mirror-selected.txt}
-mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
-sha256_file=${sha256_file:-sha256sums.txt}
 
+export workingd_path=$(dirname $(realpath "$0"))
+export download_path=${download_path:-$PWD/$ddir}
+export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+export sha256_file=${sha256_file:-sha256sums.txt}
+
+function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
 function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
@@ -149,6 +147,12 @@ function wget_last_tag() {
 
 ################################################################################
 
+if isondemand; then
+    perr "###############################################"
+    perr "This is an on-demand from remote running script"
+    perr "###############################################"
+fi
+
 # Deciding which version download from the repo
 
 user="robang74"
@@ -262,9 +266,14 @@ let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
 echo
 echo "->  Directory '$ddir' populated: $(du -ms . | tr -cd [0-9]) MB"
-scrp=${usbinst_script_name}
-if [ -n "$scrp" -a -n "$bdev" -a -r "$scrp" ]; then
-    bash $scrp $iso $bdev $lang
+
+if test "$DEVEL" == "ondemand" || isondemand; then
+    perr "###############################################"
+    perr " Now you can insert the USB stick to be writen "
+    perr "###############################################"
+    unsure && bash ${download_path}/${usbinst_script_name} --on-demand
+elif [ -r "${usbinst_script_name}" -a -n "$bdev" ]; then
+    bash ${usbinst_script_name} $iso $bdev $lang
 else
     echo
 fi

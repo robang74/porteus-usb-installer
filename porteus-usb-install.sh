@@ -96,6 +96,7 @@ else ###########################################################################
 trap "echo; echo; exit 1" INT
 
 declare -i ext=0
+
 iso=${1:-}
 dev=${2:-}
 if [ "x$3" == "x--ext4-install" ]; then
@@ -117,11 +118,15 @@ mbr="porteus-usb-bootable.mbr.gz"
 dst="/tmp/usb"
 src="/tmp/iso"
 
-test -b "/dev/$dev" || dev=$(basename "$dev")
-test -b "/dev/$dev" || missing "/dev/$dev"
-
-test -r "$iso" || iso="$wdr/$iso"
-test -r "$iso" || missing "$iso"
+if [ "x$1" == "x--on-demand" ]; then
+    usage errexit
+    source $(search porteus-net-ondemand.sh)
+else
+    test -b "/dev/$dev" || dev=$(basename "$dev")
+    test -b "/dev/$dev" || missing "/dev/$dev"
+    test -r "$iso" || iso="$wdr/$iso"
+    test -r "$iso" || missing "$iso"
+fi
 
 test -r "$bsi" || bsi="$wdr/$bsi"
 test -f "$bsi" || bsi=""
