@@ -3,6 +3,8 @@
 # (C) 2025, Roberto A. Foglietta <roberto.foglietta@gmail.com> - 3-clause BSD
 #
 ################################################################################
+set +o noclobber
+set +u
 set -e
 
 wdr=$(dirname "$0")
