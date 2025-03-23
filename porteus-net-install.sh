@@ -47,11 +47,11 @@ echo me cmd:$$:$cmd; bash -i <(cat test.sh)
 # 0:/dev/fd/62:2170760 ppid:2170724 pcmd:bash /dev/fd/63
 #                      stat:2170724 (bash) S 1786462 2170724 17
 
-tagver="v0.2.8"
+tagver="v0.2.8" # To replace with the lastest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
-bash -i <(wget -qO- $net_inst_url)
+DEVEL=0 # bash -i <(wget -qO- $net_inst_url)
 
 fi #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ################################################################################
@@ -233,7 +233,7 @@ echo "Archive '$zpkg' extraction"
 echo
 tar xvzf $zpkg -C . --strip-components=1
 
-# Say goodbye and hand over
+# Say goodbye and hand over, eventually
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
