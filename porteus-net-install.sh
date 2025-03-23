@@ -7,9 +7,12 @@ set +o noclobber
 set +u
 set -e
 
-ddir="downloads"
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+ddir="downloads"
+echo $0 | grep -q /dev/fd/ &&\
+    ddir="porteus.raf"
 
 export download_path=${download_path:-$PWD/$ddir}
 export workingd_path=$(dirname $(realpath "$0"))
@@ -28,24 +31,31 @@ function usage() {
 isdevel && perr "download path: $download_path\nworkingd path: $workingd_path"
 
 ################################################################################
+if false; then errexit #////////////////////////////////////////////////////////
 
-# echo '#!/bin/bash
-# stat=$(head -c35 /proc/$PPID/stat)
-# pcmd=$(echo $(strings /proc/$PPID/cmdline))
-# echo 0:$0:$$ ppid:$PPID pcmd:$pcmd stat:$stat
-# ' | tee test.sh | grep -v .; chmod a+x test.sh
-# cmd=$(echo $(strings /proc/$$/cmdline))
-# echo me cmd:$$:$cmd; cat test.sh | bash
-# bash test.sh; ./test.sh; source test.sh
+echo '#!/bin/bash
+stat=$(head -c35 /proc/$PPID/stat)
+pcmd=$(echo $(strings /proc/$PPID/cmdline))
+echo 0:$0:$$ ppid:$PPID pcmd:$pcmd stat:$stat
+' | tee test.sh | grep -v .; chmod a+x test.sh
 
-# me cmd:1786462:bash
-# 0:bash:2119399 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
-# 0:test.sh:2119403 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
-# 0:./test.sh:2119407 ppid:1786462 pcmd:bash stat:1786462 (bash) S 11361 1786462 1786
-# 0:bash:1786462 ppid:11361 pcmd:/usr/libexec/gnome-terminal-server stat:11361 (gnome-terminal-) R 10402 113
+cmd=$(echo $(strings /proc/$$/cmdline))
+echo me cmd:$$:$cmd; bash -i <(cat test.sh)
 
-# set -x
+# RAF: output from the code above to make properly work the code below
+# me cmd:2170724:bash /dev/fd/63
+# 0:/dev/fd/62:2170760 ppid:2170724 pcmd:bash /dev/fd/63
+#                      stat:2170724 (bash) S 1786462 2170724 17
+
+tagver="v0.2.8"
+rawurl="https://raw.githubusercontent.com/robang74"
+rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
+rawurl="$rawurl/porteus-net-install.sh"
+bash -i <(wget -qO- $net_inst_url)
+
+fi #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ################################################################################
+# set -x
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
@@ -55,8 +65,8 @@ else
     mkdir -p "$download_path"
     pushd "$download_path" >/dev/null
     perr "-> pwd: $PWD"
-################################################################################
 # set +x
+################################################################################
 
 # This values depend by external sources and [TODO] should be shared here
 mirror_file=${mirror_file:-porteus-mirror-selected.txt}
@@ -80,10 +90,16 @@ function missing() {
     errexit
 }
 
-function sure() {
+function unsure() {
     local ans
     echo; read -p "${1:-Are you sure to continue}? [N/y] " ans
     ans=${ans^^}; test "${ans:0:1}" == "Y" || return 1
+}
+
+function agree() {
+    local ans
+    echo; read -p "${1:-Are you sure to continue}? [Y/n] " ans
+    ans=${ans^^}; test "${ans:0:1}" != "N" || return 1
 }
 
 function waitdev() {
@@ -119,7 +135,7 @@ function download() {
         if [ ! -n "$opt" ]; then search "$f" >/dev/null && continue; fi
         echo
         echo "Downloading file: $f"
-        sure "${sure_string}" || errexit
+        agree "${sure_string}" || errexit
         if ! wget -q --show-progress $opt $url/$f; then
             perr "ERROR: downloading '$f', abort!"
             errexit
@@ -161,7 +177,7 @@ fi
 while true; do
     test -n "$2" -o -r $mirror_file && break
     perr "WARNING: no any mirror selected, using '$mirror_dflt'"
-    sure "Do you want to check for the fastest mirror available" || break
+    agree "Do you want to check for the fastest mirror available" || break
     fname=${mirrors_script_name}
     script=$(search $fname ||:)
     if [ ! -r "$script" ]; then
