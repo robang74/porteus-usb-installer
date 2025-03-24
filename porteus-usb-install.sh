@@ -232,10 +232,10 @@ test -n "$kmp" && kmp="kmap=$kmp"
 ################################################################################
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
-if true; then
+fdisk -l /dev/${dev} >/dev/null || errexit $? && {
     echo; fdisk -l /dev/${dev}; echo
     mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
-fi | sed -e "s,^.*$,\t&,"
+} | sed -e "s,^.*$,\t&,"
 perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
 besure || errexit
 if [ "$usrmn" == "0" ]; then
