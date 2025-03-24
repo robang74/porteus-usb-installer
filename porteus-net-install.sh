@@ -36,7 +36,7 @@ function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
 function amiroot() {
-    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" != "root"
+    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
 }
 
 function usage() {
