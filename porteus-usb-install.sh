@@ -9,7 +9,15 @@ set -e
 
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
+
+export workingd_path=$(dirname $(realpath "$0"))
+export download_path=${download_path:-$PWD/$store_dirn}
+export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+export sha256_file=${sha256_file:-sha256sums.txt}
 
 # Comment this line below to have the journal within the persistence loop file
 nojournal="-O ^has_journal"
@@ -19,9 +27,14 @@ blocks="256K"
 
 ################################################################################
 
+function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "$DEVEL" == "${1:-1}"; }
 function perr() { { echo; echo "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
+
+function amiroot() {
+    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
+}
 
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
@@ -33,13 +46,16 @@ function missing() {
     errexit
 }
 
-function sure() {
+function besure() {
     local ans
-    echo
-    read -p "Are you sure to continue [N/y] " ans
-    ans=${ans:0:1}
-    test "$ans" == "Y" -o "$ans" == "y" && return 0
-    errexit
+    echo; read -p "${1:-Are you sure to continue}? [N/y] " ans
+    ans=${ans^^}; test "${ans:0:1}" == "Y" || return 1
+}
+
+function agree() {
+    local ans
+    echo; read -p "${1:-Are you sure to continue}? [Y/n] " ans
+    ans=${ans^^}; test "${ans:0:1}" != "N" || return 1
 }
 
 function waitdev() {
@@ -69,42 +85,68 @@ function search() {
     return 1
 }
 
-function check_dmsg_for_last_attached_scsi() {
-    local str lst dev=$1
+scsi_str=""; scsi_dev="";
+function find_last_attached_scsi_unit() {
+    local str lst
     str=$(dmesg | grep "] sd .* removable disk" | tail -n1)
     lst=$(echo "$str" | sed -ne "s,.*\[\(sd.\)\].*,\\1,p")
     if [ ! -n "$lst" ]; then
-        str=$(sudo dmesg | grep "\[sd[a-z]\] .* removable disk" | tail -n1)
+        str=$(dmesg | grep "\[sd[a-z]\] .* removable disk" | tail -n1)
         lst=$(echo "$str" | sed -ne "s,.*\[\(sd.\)\].*,\\1,p")
     fi
-    if [ ! -n "$lst" ]; then
-        perr "WARNING: to write on '/dev/$dev' but unable to find the last attached unit"
-        sure
-    elif [ "$lst" != "$dev" ]; then
-        perr "WARNING: to write on '/dev/$dev' but '/dev/$lst' is the last attached unit"
-        perr "$str"
-        sure
-    else
-        perr "$str"
+    scsi_str="$str"
+    scsi_dev="$lst"
+}
+
+function check_last_attached_scsi_unit() {
+    local dev=$1
+    if [ ! -b /dev/$dev ]; then
+        perr "WARNING: error '${dev:+/dev/$dev}' is not a block device, abort!"
+        errexit
     fi
+    if [ ! -n "$scsi_dev" ]; then
+        perr "WARNING: to write on '/dev/$dev' but unable to find the last attached unit"
+        besure || errexit
+    elif [ "$scsi_dev" != "$dev" ]; then
+        perr "WARNING: to write on '/dev/$dev' but '/dev/$scsi_dev' is the last attached unit"
+        perr "$scsi_str"
+        besure || errexit
+    else
+        perr "$scsi_str"
+    fi
+}
+
+function check_dmsg_for_last_attached_scsi() {
+    find_last_attached_scsi_unit     # producer
+    check_last_attached_scsi_unit $1 # user
+    scsi_str=""; scsi_dev=""         # consumer
 }
 
 if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
     usage echo
 else ###########################################################################
 
+if isondemand; then
+    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
+    errexit
+fi
+
 trap "echo; echo; exit 1" INT
 
-declare -i ext=0
+declare -i extfs=0 usrmn=0
 
-iso=${1:-}
+if [ "x$1" == "x--user-menu" ]; then
+    usrmn=1; set --
+else
+    iso=${1:-}
+fi
 dev=${2:-}
 if [ "x$3" == "x--ext4-install" ]; then
-    ext=4
+    extfs=4
     shift
 fi
 kmp=${3:-}
-ext=${4:+4}
+extfs=${4:+4}
 
 sve="changes.dat"
 bgi="moonwalker-background.jpg"
@@ -118,10 +160,7 @@ mbr="porteus-usb-bootable.mbr.gz"
 dst="/tmp/usb"
 src="/tmp/iso"
 
-if [ "x$1" == "x--on-demand" ]; then
-    usage errexit
-    source $(search porteus-net-ondemand.sh)
-else
+if [ "$usrmn" == "0" ]; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
     test -b "/dev/$dev" || missing "/dev/$dev"
     test -r "$iso" || iso="$wdr/$iso"
@@ -137,24 +176,69 @@ test -f "$bgi" || bgi=""
 test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 
-test -n "$kmp" && kmp="kmap=$kmp"
-
-if [ "$(whoami)" != "root" ]; then
-    perr "WARNING: script '$shs' for '/dev/$dev' requires root priviledges"
+if ! amiroot; then
+    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges"
     echo
-# RAF: this could be annoying but it could also be an extra safety checkpoint
-    test "$DEVEL" == "1" ||  sudo -k
-    sudo bash $0 "$@"
-    exit $?
+    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
+    test "$DEVEL" == "0" && sudo -k
+    test "$usrmn" == "0" || set -- "--user-menu"
+    exec sudo bash $0 "$@" # exec replaces this process, no return from here
+    perr "ERROR: exec fails or a bug hits here, abort!"
+    errexit -1
 fi
+
+echo "
+Executing shell script from: $wdr
+       current working path: $PWD
+           script file name: $shs
+              with oprtions: ${@:-(none)}
+                    by user: ${SUDO_USER:+$SUDO_USER as }$USER"
+
+if [ "$usrmn" != "0" ]; then
+    # RAF: selecting the device by insertion is the most user-friendly way to go
+    while true; do
+        find_last_attached_scsi_unit
+        test -b /dev/$scsi_dev && break
+        perr "Waiting for the USB stick insertion, press ENTER to continue"
+        read; sleep 1
+    done
+    perr "$scsi_str"
+    agree "This above is the last unit attached, select it" || usage errexit
+    dev=$scsi_dev
+
+    # RAF: auto-selection for ISO, priority: 1. folder; 2. newest
+    for d in . "${store_dirn}" "$wdr"; do
+        iso=$(command ls -1t "$d"/*.iso "$d"/*.ISO 2>/dev/null ||:)
+        test -n "$iso" && break
+    done
+    test -r "$iso" || missing "ISO:${iso:- not found}"
+    agree "Is this '$iso' the ISO file you want use" || usage errexit
+
+    while true; do
+        if agree "Do you want an EXT4 installation"; then
+            extfs=4; break
+        elif agree "Do you want a LIVE for sporadic use" ; then
+            extfs=0; break
+        fi
+    done
+
+    echo; read -p \
+"Please provide the 2-letter keyboard language,
+or press ENTER for leave the current settings: " kmp
+fi
+
+test -n "$kmp" && kmp="kmap=$kmp"
 
 ################################################################################
 
-perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} ext:$ext
-fdisk -l /dev/${dev} >/dev/null || errexit
-echo; fdisk -l /dev/${dev} | sed -e "s,^.*$,\t&,"
-perr "WARNING: all data on '/dev/$dev' will be LOST"
-sure && check_dmsg_for_last_attached_scsi "$dev"
+perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
+if true; then
+    echo; fdisk -l /dev/${dev}; echo
+    mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
+fi | sed -e "s,^.*$,\t&,"
+perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
+besure || errexit
+check_dmsg_for_last_attached_scsi "$dev"
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
@@ -169,7 +253,7 @@ declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
 if false; then
-    if [ $ext -eq 4 ]; then
+    if [ $extfs -eq 4 ]; then
         dd if=$(search $iso) bs=1M count=1 | if [ -n "$kmap" ]; then
             sed -e "s,# kmap=br,kmap=$kmp  ,"; else dd status=none; fi
     else
@@ -180,7 +264,7 @@ zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 
 # Prepare partitions and filesystems
-if [ $ext -eq 4 ]; then
+if [ $extfs -eq 4 ]; then
     printf "d_n____+16M_t_17_a_n_____w_" |\
         tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
@@ -203,7 +287,7 @@ mount -o loop ${iso} ${src}
 cp -arf ${src}/boot ${src}/EFI ${dst}
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 echo
-str=" ${kmp}"; test $ext -eq 4 || str="/${sve} ${kmp}"
+str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
 grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
@@ -211,7 +295,7 @@ if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
 fi
 
 # Creating persistence loop filesystem or umount
-if [ $ext -eq 4 ]; then
+if [ $extfs -eq 4 ]; then
     umount ${dst}
     mount /dev/${dev}2 ${dst}
 else
