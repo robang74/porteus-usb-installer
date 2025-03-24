@@ -1,0 +1,5 @@
+# TODO
+
+- check for the faster Porteus repository only when downloading the ISO
+- test to deal with EXT4 and sync/umount in background while writing VFAT
+- test a different order of umount compared with the current (v0.3.1)
