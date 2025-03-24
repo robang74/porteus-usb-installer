@@ -246,6 +246,12 @@ fi
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}* 2>/dev/null || true
+if true; then
+    for i in /dev/${dev}?; do
+        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+        dd if=/dev/zero bs=32k count=1 of=$i status=none
+    done
+fi
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
@@ -260,7 +266,7 @@ waitdev ${dev}1
 
 # Prepare partitions and filesystems
 str="/dev/null"
-test $DEVEL -qt 1 && str="/dev/stdout"
+test $DEVEL -gt 1 && str="/dev/stdout"
 if [ $extfs -eq 4 ]; then
     printf "d_n____+16M_t_17_a_n_____w_" |\
         tr _ '\n' | fdisk /dev/${dev}
