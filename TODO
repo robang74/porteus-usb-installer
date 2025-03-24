@@ -6,3 +6,10 @@
 - write the VFAT in a tmpfs loop and dd in its partition as speed test
 - check about swapability and add "noswap", which is a performance killer
 - evaluate to add zram swap for those case can make a difference 
+
+
+# DEVEL
+
+- short link for the script on tags v0.3.1: tinyurl.com/2csl7ae3
+- short link for the script on the main head: tinyurl.com/2bn89qqo (RISKY!!)
+
