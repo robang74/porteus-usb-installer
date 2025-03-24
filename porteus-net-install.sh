@@ -211,7 +211,7 @@ proj="porteus-usb-installer"
 repo="https://github.com/$user/$proj"
 rawu="https://raw.githubusercontent.com/$user/$proj"
 
-tagver="v0.2.9"
+tagver="v0.3.1"
 reftyp="tags"
 
 if isdevel; then
