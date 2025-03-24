@@ -181,7 +181,7 @@ if ! amiroot; then
     echo
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     test "$DEVEL" == "0" && sudo -k
-    test "$usrmn" == "0" || set -- "--user-menu"
+    test "$usrmn" != "0" && set -- "--user-menu"
     exec sudo bash $0 "$@" # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"
     errexit -1
@@ -238,7 +238,9 @@ if true; then
 fi | sed -e "s,^.*$,\t&,"
 perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
 besure || errexit
-check_dmsg_for_last_attached_scsi "$dev"
+if [ "$usrmn" == "0" ]; then
+    check_dmsg_for_last_attached_scsi "$dev"
+fi
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
@@ -296,6 +298,7 @@ fi
 
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
+    perr "INFO: waiting for VFAT umount synchronisation..."
     umount ${dst}
     mount /dev/${dev}2 ${dst}
 else
@@ -308,6 +311,7 @@ else
 fi
 
 # Copying Porteus system and modules from ISO file
+perr "INFO: copying porteus files..."
 cp -arf ${src}/*.txt ${src}/porteus ${dst}
 if test -n "${bsi}"; then
     lpd=${dst}/porteus/rootcopy
@@ -318,10 +322,8 @@ if test -n "${bsi}"; then
 fi
 
 # Umount source and eject USB device
-perr "INFO: waiting for umount synchronisation..."
-#wait
-umount ${src}
-umount ${dst}
+perr "INFO: waiting for LAST umount synchronisation..."
+umount ${src} ${dst}
 echo; fsck -yf /dev/${dev}1 || true
 echo; fsck -yf /dev/${dev}2 || true
 eject /dev/${dev}

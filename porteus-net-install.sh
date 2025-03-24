@@ -321,8 +321,11 @@ if isondemand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"
-    besure &&\
+    if besure; then
         bash $uis --user-menu
+    else
+        bash $uis --help
+    fi
 elif [ -r "$uis" -a -n "$bdev" ]; then
     bash $uis $iso $bdev $lang
 else
