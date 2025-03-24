@@ -13,6 +13,8 @@ shs=$(basename "$0")
 store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
+test -n "$DEVEL" || export DEVEL=0;
+
 export workingd_path=$(dirname $(realpath "$0"))
 export download_path=${download_path:-$PWD/$store_dirn}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
@@ -59,14 +61,13 @@ function agree() {
 }
 
 function waitdev() {
-    while false; do
-        umount /dev/$dev* 2>/dev/null || true
-        partprobe 2>&1 | grep -v "recursive partition" |\
-            grep . || break
-        sleep 0.5
-    done
+    local i
     partprobe; for i in $(seq 1 100); do
-        egrep " $1$" /proc/partitions && return 0
+        if grep -q " $1$" /proc/partitions; then
+            sleep 1
+            umount /dev/$dev* 2>/dev/null ||:
+            return 0
+        fi
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
@@ -258,19 +259,21 @@ zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 
 # Prepare partitions and filesystems
+str="/dev/null"
+test $DEVEL -qt 1 && str="/dev/stdout"
 if [ $extfs -eq 4 ]; then
     printf "d_n____+16M_t_17_a_n_____w_" |\
         tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
     mkfs.vfat -n EFIBOOT /dev/${dev}1
-    mke4fs "Porteus" /dev/${dev}2
+    mke4fs "Porteus" /dev/${dev}2 #$nojournal
 else
     mkfs.vfat -n Porteus /dev/${dev}1
     printf "n_p_2___w_" | tr _ '\n' |\
-        fdisk /dev/${dev} >/dev/null
+        fdisk /dev/${dev}
     waitdev ${dev}2
     mke4fs "Portdata" /dev/${dev}2
-fi >/dev/null
+fi >$str
 
 # Mount source and destination devices
 echo
@@ -296,9 +299,6 @@ time=""; which time >/dev/null && time="time -p"
 if [ $extfs -eq 4 ]; then
     perr "INFO: waiting for VFAT umount synchronisation..."
     $time umount ${dst}
-    #umount ${dst} &
-    #dst=${dst}.p2
-    mkdir -p ${dst}
     mount /dev/${dev}2 ${dst}
 else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve}
