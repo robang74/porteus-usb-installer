@@ -289,18 +289,17 @@ shf=$(search $sha256_file)
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
-if [ "$DEVEL" == "0" ]; then
-    iso=$(search $iso || echo $iso)
-    if ! isocheck $iso $chk; then
-        download -c $url $iso
-        iso=$(search $iso)
-        if ! isocheck  $iso $chk; then
-            rm -f $iso
-            errexit
-        fi
+iso=$(search $iso || echo $iso)
+if ! isocheck $iso $chk; then
+    download -c $url $iso
+    iso=$(search $iso)
+    if ! isocheck  $iso $chk; then
+        rm -f $iso
+        errexit
     fi
-    download ${zpkg_url} $zpkg
 fi
+download ${zpkg_url} $zpkg
+
 zpkg=$(search $zpkg ||:)
 if [ -r "$zpkg" ]; then
     echo
