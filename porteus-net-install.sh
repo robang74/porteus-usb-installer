@@ -59,7 +59,37 @@ DEVEL=0 # bash -i <(wget -qO- $net_inst_url)
 fi #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ################################################################################
 # set -x
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
+if [ "x$1" == "x--clean" ]; then
+    d=$download_path
+    if [ ! -d "$d" ]; then
+        perr "ERROR: folder '$d' does not exit, abort!"
+        errexit
+    fi
+    if [ "$(whoami)" == "root" ]; then
+        if [ -n "${SUDO_USER}" ]; then
+            perr "ERROR: try as user, variable \$SUDO_USER is void/unset, abort!"
+            errexit
+        fi
+        chown -R ${SUDO_USER}.${SUDO_USER} $d
+        perr "WARNING: please execute this script as user, not as root, abort!"
+        errexit
+    fi
+    while true; do
+        # RAF: better use mktemp here
+        rd="$d.$RANDOM"
+        test -d $rd || break
+        sleep 0.1
+    done
+    mkdir $rd && mv -f $d/*.iso $d/*.ISO $rd 2>/dev/null ||:\
+         && rm -rf $d && mv $rd $d
+    isolist=$(ls -1t $d/*.iso $d/*.ISO 2>/dev/null ||:)
+    if [ -n "$isolist" ]; then
+        perr "WARNING: the ISO image files are left untouched, do it manually"
+    else
+        perr "done."
+    fi
+    errexit 0
+elif [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
@@ -77,7 +107,7 @@ function missing() {
     errexit
 }
 
-function unsure() {
+function besure() {
     local ans
     echo; read -p "${1:-Are you sure to continue}? [N/y] " ans
     ans=${ans^^}; test "${ans:0:1}" == "Y" || return 1
@@ -271,7 +301,7 @@ if test "$DEVEL" == "ondemand" || isondemand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"
-    unsure && \
+    besure && \
         exec bash ${download_path}/${usbinst_script_name} --on-demand
 elif [ -r "${usbinst_script_name}" -a -n "$bdev" ]; then
     bash ${usbinst_script_name} $iso $bdev $lang
