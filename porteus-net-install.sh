@@ -173,7 +173,7 @@ function download() {
         if [ ! -n "$opt" ]; then search "$f" >/dev/null && continue; fi
         echo
         echo "Downloading file: $f"
-        agree "${sure_string}" || errexit
+        agree "${sure_string}" || return 0 # user decided, and it is fine
         if ! wget -q --show-progress $opt $url/$f; then
             perr "ERROR: downloading '$f', abort!"
             errexit
@@ -289,27 +289,25 @@ shf=$(search $sha256_file)
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
-iso=$(search $iso || echo $iso)
-if ! isocheck $iso $chk; then
-    download -c $url $iso
-    iso=$(search $iso)
-    if ! isocheck  $iso $chk; then
-        rm -f $iso
-        errexit
+if [ "$DEVEL" == "0" ]; then
+    iso=$(search $iso || echo $iso)
+    if ! isocheck $iso $chk; then
+        download -c $url $iso
+        iso=$(search $iso)
+        if ! isocheck  $iso $chk; then
+            rm -f $iso
+            errexit
+        fi
     fi
-fi
-
-if [ "$DEVEL" == "1" ]; then
-    rm -f $zpkg $wdr/$zpkg
-    echo 'y' | download ${zpkg_url} $zpkg
-else
     download ${zpkg_url} $zpkg
 fi
-zpkg=$(search $zpkg)
-echo
-echo "Archive '$zpkg' extraction"
-echo
-tar xvzf $zpkg -C . --strip-components=1
+zpkg=$(search $zpkg ||:)
+if [ -r "$zpkg" ]; then
+    echo
+    echo "Archive '$zpkg' extraction"
+    echo
+    tar xvzf $zpkg -C . --strip-components=1
+fi
 
 # Say goodbye and hand over, eventually
 echo
@@ -320,12 +318,12 @@ uis=${usbinst_script_name}
 dsd=${store_dirn}
 echo
 echo "->  Directory '$dsd' populated: $(du -ms . | tr -cd [0-9]) MB"
-if test "$DEVEL" == "ondemand" || isondemand; then
+if isondemand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"
     besure &&\
-        bash $dsd/$uis --user-menu
+        bash $uis --user-menu
 elif [ -r "$uis" -a -n "$bdev" ]; then
     bash $uis $iso $bdev $lang
 else
