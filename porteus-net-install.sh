@@ -16,11 +16,13 @@ set +o noclobber
 set +u
 set -e
 
+wdr=$(dirname "$0")
+shs=$(basename "$0")
+
 store_dirn="moonwalker"
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
-wdr=$(dirname "$0")
-shs=$(basename "$0")
+test -n "$DEVEL" || export DEVEL=0;
 
 # This values depend by external sources and [TODO] should be shared here
 
