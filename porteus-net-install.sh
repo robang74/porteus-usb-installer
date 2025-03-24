@@ -83,11 +83,6 @@ fi #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ################################################################################
 # set -x
 if [ "x$1" == "x--clean" ]; then
-    d=$download_path
-    if [ ! -d "$d" ]; then
-        perr "ERROR: folder '$d' does not exit, abort!"
-        errexit
-    fi
     if amiroot; then
         if [ ! -n "${SUDO_USER}" ]; then
             perr "ERROR: try as user, variable \$SUDO_USER is void/unset, abort!"
@@ -97,21 +92,33 @@ if [ "x$1" == "x--clean" ]; then
         chown -R ${SUDO_USER}.${SUDO_USER} $d
         errexit
     fi
+    d=$download_path
+    if [ ! -d "$d" ]; then
+        perr "ERROR: folder '$d' does not exit, abort!"
+        errexit
+    fi
+    if [ "$(realpath $PWD)" == "$(realpath $d)" ]; then
+        perr "WARNING: deleting current directory, prompt 'cd .' or 'cd ..' afterwards"
+    fi
+    set +x
     while true; do
         # RAF: better use mktemp here
         rd="$d.$RANDOM"
         test -d $rd || break
         sleep 0.1
     done
-    mkdir $rd && mv -f $d/*.iso $d/*.ISO $rd 2>/dev/null ||:\
-         && rm -rf $d && mv $rd $d
-    isolist=$(ls -1t $d/*.iso $d/*.ISO 2>/dev/null ||:)
-    if [ -n "$isolist" ]; then
-        perr "WARNING: the ISO image files are left untouched, do it manually"
-    else
-        perr "done."
-    fi
-    errexit 0
+    # RAF: this piece of code should be isolated, it can delete itself.
+    (
+        mkdir $rd && mv -f $d/*.iso $d/*.ISO $rd 2>/dev/null ||:\
+             && rm -rf $d && mv $rd $d
+        isolist=$(ls -1t $d/*.iso $d/*.ISO 2>/dev/null ||:)
+        if [ -n "$isolist" ]; then
+            perr "INFO: the ISO image files are left untouched, do it manually"
+        else
+            perr "done."
+        fi
+        errexit 0
+    )
 elif [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
 elif amiroot; then
