@@ -14,11 +14,13 @@ store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
 export DEVEL=${DEVEL:-0}
-export workingd_path=$(dirname $(realpath "$0"))
-export download_path=${download_path:-$PWD/$store_dirn}
-export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
-export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
-export sha256_file=${sha256_file:-sha256sums.txt}
+
+# RAF: none of these following variables is used into this script.
+#export workingd_path=$(dirname $(realpath "$0"))
+#export download_path=${download_path:-$PWD/$store_dirn}
+#export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+#export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
+#export sha256_file=${sha256_file:-sha256sums.txt}
 
 # Comment this line below to have the journal within the persistence loop file
 nojournal="-O ^has_journal"

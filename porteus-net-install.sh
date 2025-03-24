@@ -29,7 +29,7 @@ test -n "$DEVEL" || export DEVEL=0;
 export workingd_path=$(dirname $(realpath "$0"))
 export download_path=${download_path:-$PWD/$store_dirn}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
-export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 export sha256_file=${sha256_file:-sha256sums.txt}
 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
@@ -279,8 +279,7 @@ vers=${4:-current}
 bdev=$5
 lang=$6
 
-prt=; test "$(basename $uweb)" == "porteus" || prt="porteus"
-url=$(echo "$uweb/$prt/$arch/$vers" | sed -e "s,http:,https:,")
+url=$(echo "$uweb/$arch/$vers" | sed -e "s,http:,https:,")
 
 ################################################################################
 
