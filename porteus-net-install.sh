@@ -7,7 +7,7 @@ set +o noclobber
 set +u
 set -e
 
-ddir="moonwalker"
+store_dirn="moonwalker"
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
 wdr=$(dirname "$0")
@@ -16,7 +16,7 @@ shs=$(basename "$0")
 # This values depend by external sources and [TODO] should be shared here
 
 export workingd_path=$(dirname $(realpath "$0"))
-export download_path=${download_path:-$PWD/$ddir}
+export download_path=${download_path:-$PWD/$store_dirn}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
 export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
 export sha256_file=${sha256_file:-sha256sums.txt}
@@ -26,12 +26,21 @@ function isdevel() { test "$DEVEL" == "${1:-1}"; }
 function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
+function amiroot() {
+    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" != "root"
+}
+
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
 
-isdevel && perr "download path: $download_path\nworkingd path: $workingd_path"
+if isdevel; then
+    perr "download path: $download_path\nworkingd path: $workingd_path"
+else
+    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
+    sudo -k
+fi
 
 ################################################################################
 if false; then errexit #////////////////////////////////////////////////////////
@@ -65,7 +74,7 @@ if [ "x$1" == "x--clean" ]; then
         perr "ERROR: folder '$d' does not exit, abort!"
         errexit
     fi
-    if [ "$(whoami)" == "root" ]; then
+    if amiroot; then
         if [ ! -n "${SUDO_USER}" ]; then
             perr "ERROR: try as user, variable \$SUDO_USER is void/unset, abort!"
             errexit
@@ -91,6 +100,9 @@ if [ "x$1" == "x--clean" ]; then
     errexit 0
 elif [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then # RAF: isn't a kind of magic!?
     usage echo
+elif amiroot; then
+    perr "This script is NOT supposed being executed by root, abort!"
+    errexit
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
     exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
@@ -294,17 +306,19 @@ tar xvzf $zpkg -C . --strip-components=1
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
-echo
-echo "->  Directory '$ddir' populated: $(du -ms . | tr -cd [0-9]) MB"
 
+uis=${usbinst_script_name}
+dsd=${store_dirn}
+echo
+echo "->  Directory '$dsd' populated: $(du -ms . | tr -cd [0-9]) MB"
 if test "$DEVEL" == "ondemand" || isondemand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"
-    besure && \
-        exec bash ${download_path}/${usbinst_script_name} --on-demand
-elif [ -r "${usbinst_script_name}" -a -n "$bdev" ]; then
-    bash ${usbinst_script_name} $iso $bdev $lang
+    besure &&\
+        bash $dsd/$uis --user-menu
+elif [ -r "$uis" -a -n "$bdev" ]; then
+    bash $uis $iso $bdev $lang
 else
     echo
 fi
