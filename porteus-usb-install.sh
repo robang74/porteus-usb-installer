@@ -254,14 +254,6 @@ mkdir -p ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
-if false; then
-    if [ $extfs -eq 4 ]; then
-        dd if=$(search $iso) bs=1M count=1 | if [ -n "$kmap" ]; then
-            sed -e "s,# kmap=br,kmap=$kmp  ,"; else dd status=none; fi
-    else
-        zcat ${mbr}
-    fi >/dev/${dev}
-fi
 zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 
@@ -307,7 +299,6 @@ else
     mkdir -p ${dst}/porteus/
     cp -f ${sve} ${dst}/porteus/
     rm -f ${sve}
-    #sync ${dst}/*.txt &
 fi
 
 # Copying Porteus system and modules from ISO file
@@ -324,6 +315,7 @@ fi
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
 umount ${src} ${dst}
+umount /dev/${dev}* 2>/dev/null ||:
 echo; fsck -yf /dev/${dev}1 || true
 echo; fsck -yf /dev/${dev}2 || true
 eject /dev/${dev}
