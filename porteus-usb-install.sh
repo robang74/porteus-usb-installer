@@ -279,16 +279,17 @@ mount /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
 
 # Copying Porteus EFI/boot files from ISO file
-cp -arf ${src}/boot ${src}/EFI ${dst}
-test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-echo
-str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
-sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
-grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
-if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
-    perr "INFO: custom boot screen background '${bsi}' copied"
+if true; then
+    cp -arf ${src}/boot ${src}/EFI ${dst}
+    test -r ${dst}/${cfg} || missing ${dst}/${cfg}
+    echo
+    str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
+    sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
+    grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
+    if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
+        perr "INFO: custom boot screen background '${bsi}' copied"
+    fi
 fi
-
 time=""; which time >/dev/null && time="time -p"
 
 # Creating persistence loop filesystem or umount
@@ -321,9 +322,7 @@ fi
 set +xe
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
-$time umount ${src} ${dst} 2>/dev/null &
-sync #sync -f ${dst}/${cfg} 2>/dev/null
-fg
+$time umount ${src} ${dst}
 umount /dev/${dev}* 2>/dev/null
 echo; fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
