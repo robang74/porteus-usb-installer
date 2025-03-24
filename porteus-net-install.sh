@@ -66,12 +66,12 @@ if [ "x$1" == "x--clean" ]; then
         errexit
     fi
     if [ "$(whoami)" == "root" ]; then
-        if [ -n "${SUDO_USER}" ]; then
+        if [ ! -n "${SUDO_USER}" ]; then
             perr "ERROR: try as user, variable \$SUDO_USER is void/unset, abort!"
             errexit
         fi
+        perr "WARNING: please execute this script as user, not as root"
         chown -R ${SUDO_USER}.${SUDO_USER} $d
-        perr "WARNING: please execute this script as user, not as root, abort!"
         errexit
     fi
     while true; do
