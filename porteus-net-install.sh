@@ -27,7 +27,10 @@ test -n "$DEVEL" || export DEVEL=0;
 # This values depend by external sources and [TODO] should be shared here
 
 export workingd_path=$(dirname $(realpath "$0"))
-export download_path=${download_path:-$PWD/$store_dirn}
+export download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
 export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 export sha256_file=${sha256_file:-sha256sums.txt}
