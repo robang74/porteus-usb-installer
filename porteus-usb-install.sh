@@ -13,8 +13,7 @@ shs=$(basename "$0")
 store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
-test -n "$DEVEL" || export DEVEL=0;
-
+export DEVEL=${DEVEL:-0}
 export workingd_path=$(dirname $(realpath "$0"))
 export download_path=${download_path:-$PWD/$store_dirn}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
@@ -30,7 +29,7 @@ blocks="256K"
 ################################################################################
 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
-function isdevel() { test "$DEVEL" == "${1:-1}"; }
+function isdevel() { test "${DEVEL:-0}" != "0"; }
 function perr() { { echo; echo "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
@@ -179,12 +178,12 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || missing "$mbr"
 
 if ! amiroot; then
-    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges"
+    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})"
     echo
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
-    test "$DEVEL" == "0" && sudo -k
+    isdevel || sudo -k
     test "$usrmn" != "0" && set -- "--user-menu"
-    exec sudo bash $0 "$@" # exec replaces this process, no return from here
+    exec sudo -E bash $0 "$@" # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"
     errexit -1
 fi
@@ -194,7 +193,8 @@ Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
               with oprtions: ${@:-(none)}
-                    by user: ${SUDO_USER:+$SUDO_USER as }$USER"
+                    by user: ${SUDO_USER:+$SUDO_USER as }$USER
+                      devel: ${DEVEL:-unset}"
 
 if [ "$usrmn" != "0" ]; then
     # RAF: selecting the device by insertion is the most user-friendly way to go
@@ -229,7 +229,15 @@ if [ "$usrmn" != "0" ]; then
 or press ENTER for leave the current settings: " kmp
 fi
 
+# Deciding about keyboard layout
 test -n "$kmp" && kmp="kmap=$kmp"
+
+# Deciding about time keeping and its format
+time=""; isdevel && time=$(which time)
+time=${time:+$time -freal:%es}
+
+# Deciding about output redirection
+redir="/dev/null"; isdevel && redir="/dev/stdout"
 
 ################################################################################
 
@@ -267,33 +275,27 @@ done
 zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
 waitdev ${dev}1
 
+# exit 0
 # Prepare partitions and filesystems
-str="/dev/null"
-test $DEVEL -gt 1 && str="/dev/stdout"
 if [ $extfs -eq 4 ]; then
-    printf "d_n____+16M_t_17_a_n_____w_" |\
+    printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
         tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
     mkfs.vfat -n EFIBOOT /dev/${dev}1
     mke4fs "Porteus" /dev/${dev}2 #$nojournal
 else
     mkfs.vfat -n Porteus /dev/${dev}1
-    printf "n_p_2___w_" | tr _ '\n' |\
+    printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk /dev/${dev}
     waitdev ${dev}2
     mke4fs "Portdata" /dev/${dev}2
-fi >$str
+fi >$redir
 
 # Mount source and destination devices
 echo
 mkdir -p ${dst} ${src};
 mount -o async,noatime /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
-
-# Decide about time keeping and its format
-time=$(which time)
-test "$DEBUG" == "0" && time=""
-time=${time:+$time -freal:%es}
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
@@ -315,11 +317,11 @@ if [ $extfs -eq 4 ]; then
     $time umount ${dst} 2>&1 | tr '\n' ' '
     mount -o async,noatime /dev/${dev}2 ${dst}
 else
-    dd if=/dev/zero count=1 seek=${blocks} of=${sve}
-    mke4fs "changes" ${sve} ${nojournal}
-    mkdir -p ${dst}/porteus/
-    cp -f ${sve} ${dst}/porteus/
-    rm -f ${sve}
+    dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
+    mke4fs "changes" ${sve} ${nojournal} >$redir
+    d=${dst}/porteus; mkdir -p $d
+    cp -f ${sve} $d; rm -f ${sve}
+    # RAF: using cp instead of mv because it handles the sparse
 fi
 
 # Copying Porteus system and modules from ISO file
