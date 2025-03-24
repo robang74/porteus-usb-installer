@@ -64,8 +64,9 @@ function waitdev() {
     local i
     partprobe; for i in $(seq 1 100); do
         if grep -q " $1$" /proc/partitions; then
-            sleep 1
-            umount /dev/$dev* 2>/dev/null ||:
+            # RAF: zeroing the filesystem signatures prevents automounting
+            #sleep 1
+            #umount /dev/$dev* 2>/dev/null ||:
             return 0
         fi
         sleep 0.1
@@ -156,7 +157,7 @@ opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 cfg="/boot/syslinux/porteus.cfg"
 mbr="porteus-usb-bootable.mbr.gz"
 
-# RAF, TODO: here is better to use mktemp, instead
+# RAF: TODO: here is better to use mktemp, instead
 #
 dst="/tmp/usb"
 src="/tmp/iso"
@@ -245,23 +246,25 @@ fi
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
-umount /dev/${dev}* 2>/dev/null || true
-if true; then
-    for i in /dev/${dev}?; do
-        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-        dd if=/dev/zero bs=32k count=1 of=$i status=none
-    done
-fi
+umount /dev/${dev}* 2>/dev/null || true 
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
     errexit
 fi
 mkdir -p ${dst} ${src}
+
+# Keep the time from here
 declare -i tms=$(date +%s%N)
 
+# RAF: zeroing the filesystem signatures prevents automounting
+for i in /dev/${dev}?; do
+    if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+    dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
+done
+
 # Write MBR and basic partition table
-zcat ${mbr} >/dev/${dev}
+zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
 waitdev ${dev}1
 
 # Prepare partitions and filesystems
@@ -284,12 +287,18 @@ fi >$str
 # Mount source and destination devices
 echo
 mkdir -p ${dst} ${src};
-mount /dev/${dev}1 ${dst}
+mount -o async,noatime /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
+
+# Decide about time keeping and its format
+time=$(which time)
+test "$DEBUG" == "0" && time=""
+time=${time:+$time -freal:%es}
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
-    cp -arf ${src}/boot ${src}/EFI ${dst}
+    perr "INFO: copying Porteus EFI/boot files from ISO file..."
+    $time cp -arf ${src}/boot ${src}/EFI ${dst}
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
     echo
     str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
@@ -299,13 +308,12 @@ if true; then
         perr "INFO: custom boot screen background '${bsi}' copied"
     fi
 fi
-time=""; which time >/dev/null && time="time -p"
 
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
     perr "INFO: waiting for VFAT umount synchronisation..."
-    $time umount ${dst}
-    mount /dev/${dev}2 ${dst}
+    $time umount ${dst} 2>&1 | tr '\n' ' '
+    mount -o async,noatime /dev/${dev}2 ${dst}
 else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve}
     mke4fs "changes" ${sve} ${nojournal}
@@ -315,8 +323,8 @@ else
 fi
 
 # Copying Porteus system and modules from ISO file
-perr "INFO: copying porteus files..."
-cp -arf ${src}/*.txt ${src}/porteus ${dst}
+perr "INFO: copying Porteus core system files..."
+$time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1 | tr '\n' ' '
 if test -n "${bsi}"; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
@@ -328,7 +336,7 @@ fi
 set +xe
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
-$time umount ${src} ${dst}
+$time umount ${src} ${dst} 2>&1 | tr '\n' ' '
 umount /dev/${dev}* 2>/dev/null
 echo; fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
