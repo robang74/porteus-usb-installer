@@ -267,9 +267,10 @@ if [ $extfs -eq 4 ]; then
 else
     mkfs.vfat -n Porteus /dev/${dev}1
     printf "n_p_2___w_" | tr _ '\n' |\
-        fdisk /dev/${dev}; waitdev ${dev}2
+        fdisk /dev/${dev} >/dev/null
+    waitdev ${dev}2
     mke4fs "Portdata" /dev/${dev}2
-fi
+fi >/dev/null
 
 # Mount source and destination devices
 echo
@@ -288,10 +289,15 @@ if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     perr "INFO: custom boot screen background '${bsi}' copied"
 fi
 
+time=""; which time >/dev/null && time="time -p"
+
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
     perr "INFO: waiting for VFAT umount synchronisation..."
-    umount ${dst}
+    $time umount ${dst}
+    #umount ${dst} &
+    #dst=${dst}.p2
+    mkdir -p ${dst}
     mount /dev/${dev}2 ${dst}
 else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve}
@@ -312,16 +318,20 @@ if test -n "${bsi}"; then
     perr "INFO: custom background '${bgi}' copied"
 fi
 
+set +xe
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
-umount ${src} ${dst}
-umount /dev/${dev}* 2>/dev/null ||:
-echo; fsck -yf /dev/${dev}1 || true
-echo; fsck -yf /dev/${dev}2 || true
-eject /dev/${dev}
+$time umount ${src} ${dst} 2>/dev/null &
+sync #sync -f ${dst}/${cfg} 2>/dev/null
+fg
+umount /dev/${dev}* 2>/dev/null
+echo; fsck -yf /dev/${dev}1
+echo; fsck -yf /dev/${dev}2
+while ! eject /dev/${dev};
+    do sleep 1; done
 
 # Say goodbye and exit
-set +xe
+
 echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Installation completed in $tms seconds"
