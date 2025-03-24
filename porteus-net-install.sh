@@ -214,11 +214,11 @@ rawu="https://raw.githubusercontent.com/$user/$proj"
 tagver="v0.3.1"
 reftyp="tags"
 
+str="script suggests '$tagver' as last tagged, check for updates"
 if isdevel; then
    tagver="main"
    reftyp="heads"
-else
-    agree "WARNING: script suggests '$tagver' as last tagged, check for updates"
+elif agree "WARNING: $str"; then
     tagnew=$(wget_last_tag $repo)
     if [ -n "$tagnew" ]; then
         tagver=$tagnew
