@@ -26,7 +26,11 @@ export DEVEL=${DEVEL:-0}
 
 # RAF: these values depend by external sources and [TODO] should be shared #____
 
-# RAF: defined by `mirror-selection` script
+export porteus_type=${porteus_type:-MATE}
+export porteus_arch=${porteus_arch:-x86_64}
+export porteus_version=${porteus_version:-Porteus-v5.1} #current
+
+## RAF: defined by `mirror-selection` script
 export sha256_file=${sha256_file:-sha256sums.txt}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
 export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
@@ -296,11 +300,11 @@ while true; do
 done
 
 type=${1^^}
-type=${type:-MATE}
+type=${type:-$porteus_type}
 uweb=${2:-$(cat $mirror_file 2>/dev/null ||:)}
 uweb=${uweb:-$mirror_dflt}
-arch=${3:-x86_64}
-vers=${4:-current}
+arch=${3:-$porteus_arch}
+vers=${4:-$porteus_version}
 bdev=$5
 lang=$6
 
@@ -322,12 +326,16 @@ if ! test -n "$iso" -a -n "$chk" ; then
     echo "---------------- content start -----------------"
     cat $shf
     echo "----------------- content end ------------------"
+    echo "ISO name: $iso"
     errexit
 fi
 perr "INFO: for ISO file '$iso' expecting sha256 is:
       $chk"            
 
 isof=$(search $iso || echo $iso)
+if [ ! -r "$isof" ]; then
+    download -c $url $iso
+fi
 if ! isocheck $isof $chk; then
     download -c $url $iso
     isof=$(search $iso)
