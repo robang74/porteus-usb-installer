@@ -201,9 +201,9 @@ src="/tmp/iso"
 
 if [ "$usrmn" == "0" ]; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
-    test -b "/dev/$dev" || missing "/dev/$dev"
+    test -b "/dev/$dev" || usage missing "${dev:+/dev/}${dev:-block_device}"
     test -r "$iso" || iso="$wdr/$iso"
-    test -r "$iso" || missing "$iso"
+    test -r "$iso" || usage missing "$iso"
 fi
 
 test -r "$bsi" || bsi="$wdr/$bsi"
@@ -213,7 +213,7 @@ test -r "$bgi" || bgi="$wdr/$bgi"
 test -f "$bgi" || bgi=""
 
 test -r "$mbr" || mbr="$wdr/$mbr"
-test -r "$mbr" || missing "$mbr"
+test -r "$mbr" || usage missing "$mbr"
 
 if ! amiroot; then
     perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})"
@@ -280,9 +280,9 @@ redir="/dev/null"; isdevel && redir="/dev/stdout"
 ################################################################################
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
-echo; fdisk -l /dev/${dev} >/dev/null || errexit $? && {
-    fdisk -l /dev/${dev}; echo
-    mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
+echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
+{     fdisk -l /dev/${dev}; echo
+      mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
 perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
 besure || errexit
