@@ -44,6 +44,18 @@ How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds wit
 
 ---
 
+### Huston, we have a problem
+
+On 25th March 2025, all Porteus mirrors are presenting zeroed sha256sums.txt, and it is quite a thing!
+
+![sha256sum files missing](img/porteus-iso-sha256sum-compromised.png)
+
+- Source: [A post of mine on forum.porteus.org](https://forum.porteus.org/viewtopic.php?p=102450#p102450)
+
+Without those files the scripts in this project cannot work and making them working is unacceptably insecure.
+
+---
+
 ### Default choices
 
 This is a list of system choices that I made in advance for customising the Porteus **moonwalker** edition.
