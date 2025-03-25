@@ -122,7 +122,15 @@ At this point everything is ready to write the USB stick for having the desidere
 
 Booting Porteus in RAM-only (Flash) mode, it will be possible to execute the scripts on the 2nd USB stick to install on the first which will be erased, or another one. In the future a 2nd USB key would not be necessary. A specific script will do everything in a RAM-only (Flash) running Porteuse, zeroing every risk.
 
-If &ndash; **for you** &ndash; that script above did nothing, then it is ok in that way: do not use it. ;-)
+```
+wget -qO- https://t.ly/RJ6_u | tar xvz
+cd porteus-usb-installer-main
+bash -i# porteus-net-install.sh
+# or to simulate a remote call
+# bash -i# <(cat porteus-net-install.sh)
+```
+
+If &ndash; **for you** &ndash; the shell code above does nothing, then it is ok in that way: do not use it. ;-)
 
 ---
 
