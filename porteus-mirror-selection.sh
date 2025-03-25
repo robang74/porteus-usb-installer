@@ -95,10 +95,11 @@ list=$(wget -qO- https://porteus.org/porteus-mirrors.html |\
 list="$(cat $mirror_list 2>/dev/null ||:)
 $list"
 list=$(echo "$list" | sed -e "s,http:,https:," | sort | uniq)
-echo "$list" >$mirror_list
+echo "$list" | grep . >$mirror_list
 
 echo
-printf "Sending one ping to all the mirrors, DNS caching ... "
+declare -i nmlst=$(wc -l $mirror_list | cut -d' ' -f1)
+printf "Sending one ping to all $nmlst the mirrors, DNS caching ... "
 for i in $(echo "$list" | cut -d/ -f3); do
     ping -w1 -W1 -c 1 -q $i &
 done >/dev/null 2>&1
@@ -110,24 +111,28 @@ vers=current
 dtst=bundles/man-lite-porteus-20220607-x86_64-alldesktops.xzm
 
 printf "\nDownload speed testing for every mirror, wait.\n"
-echo; # set -x # RAF, TODO: this part is still working in progress... (WIP!!)
-declare -i n=0 errf=0
+echo; #set -x # RAF, TODO: this part is still working in progress... (WIP!!)
+declare -i n=0 errf=-1
 for i in $list STOP; do
-    if [ $errf -gt 0 ]; then
-        mv $fn $fn.discarded
-        printf "\tdiscarded\n"
+    if [ $errf -eq 0 ]; then
+        printf "\tOK: valid and accepted\n\n"
+    elif [ $errf -eq 1 ]; then
+        mv $fn $fn.invalid
+        printf "\tKO: discarded due to useless or invalid $sha256_file\n\n"
+    elif [ $errf -eq 2 ]; then
+        mv $fn $fn.failure
+        printf "\tKO: discarded due to wget downloading failure\n\n"
     fi
-    test "$i" == "STOP" || break
+    test "$i" == "STOP" && break
     let n++ ||:; errf=1
     fn=$(pn_wget_log $n)
     url=$i/$arch/$vers
     printf "%02d: $i\n" $n | tee $fn
-    wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn || continue
     svf=$(printf "%02d" $n)-$sha256_file
     wget --timeout=5 -qO- $url/$sha256_file >$svf || continue
-    grep -i porteus $svf || continue
-    wlst="$wlst $i"
-    errf=0
+    grep -i porteus $svf || continue; errf=2
+    wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn || continue
+    wlst="$wlst $i"; errf=0
 done; # set +x
 
 # RAF: an alternative using dd which can be leveraged to cap the download size
@@ -137,7 +142,11 @@ done; # set +x
 topl=$(grep "written" $(wgetlogs_ls) /dev/null|\
     sed -e "s,:.*(\(.*\)).*,: \\1," | tr -d . |\
     sed -e "s, MB/s,0 KB/s," | sort -rnk 2)
-winr=$(echo "$topl" | head -n1)
+if [ ! -n "$topl" ]; then
+    echo "ERROR: no any valid or suitable mirror found, abort!" >&2
+    errexit
+fi
+winr=$(echo "$topl" | head -n1 2>/dev/null ||:)
 wfln=$(echo "$winr" | cut -d: -f1)
 strn=$(head -n1 "$wfln" | cut -d' ' -f2)
 winr=$(echo "$winr" | sed -e "s,-$wgetlogtail,,")
