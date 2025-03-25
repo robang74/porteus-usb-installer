@@ -167,7 +167,7 @@ elif amiroot; then
     errexit
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
-    exec bash -E "$d/$shs" "$@"   # exec replaces this process, no return from here
+    exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"; errexit -1 # eventually
 else ###########################################################################
 
