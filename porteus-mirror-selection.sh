@@ -76,9 +76,9 @@ fi
 
 # RAF: internal check & set and early functions #_______________________________
 
-function rm_wget_log() { rm -f $(wgetlogs_ls); }
 function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
 function wgetlogs_ls() { command ls -1 ??-$wgetlogtail 2>/dev/null ||:; }
+function rm_wget_log() { rm -f $(wgetlogs_ls) *.discarded ??-$sha256_file; }
 
 ################################################################################
 if askinghelp; then usage errexit 0;
@@ -108,21 +108,27 @@ wlst=
 arch=x86_64
 vers=current
 dtst=bundles/man-lite-porteus-20220607-x86_64-alldesktops.xzm
-declare -i n=0
 
 printf "\nDownload speed testing for every mirror, wait.\n"
-
-echo
-for i in $list; do
-    let n++ ||:
+echo; # set -x # RAF, TODO: this part is still working in progress... (WIP!!)
+declare -i n=0 errf=0
+for i in $list STOP; do
+    if [ $errf -gt 0 ]; then
+        mv $fn $fn.discarded
+        printf "\tdiscarded\n"
+    fi
+    test "$i" == "STOP" || break
+    let n++ ||:; errf=1
     fn=$(pn_wget_log $n)
     url=$i/$arch/$vers
     printf "%02d: $i\n" $n | tee $fn
-    wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn &&\
-        wget --timeout=5 -qO- $url/$sha256_file | grep -qi porteus &&\
-            wlst="$wlst
-$i"
-done
+    wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn || continue
+    svf=$(printf "%02d" $n)-$sha256_file
+    wget --timeout=5 -qO- $url/$sha256_file >$svf || continue
+    grep -i porteus $svf || continue
+    wlst="$wlst $i"
+    errf=0
+done; # set +x
 
 # RAF: an alternative using dd which can be leveraged to cap the download size
 # wget --timeout=1 -qO- $url | dd bs=1500 count=5k iflag=fullblock of=/dev/null\
