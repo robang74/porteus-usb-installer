@@ -78,6 +78,8 @@ else ###########################################################################
 
 trap "echo; echo; exit 1" INT
 
+perr "-> pwd: $PWD"
+
 list=$(wget -qO- https://porteus.org/porteus-mirrors.html |\
     sed -ne 's,.*<a href="\([^"]*\)".*,\1,p')
 list="$(cat $mirror_list 2>/dev/null ||:)
@@ -99,17 +101,17 @@ dtst=bundles/man-lite-porteus-20220607-x86_64-alldesktops.xzm
 declare -i n=0
 
 printf "\nDownload speed testing for every mirror, wait.\n"
-if ! isdevel; then
-    echo
-    for i in $list; do
-        let n++ ||:
-        fn=$(pn_wget_log $n)
-        url=$i/$arch/$vers/$dtst
-        printf "%02d: $i\n" $n | tee $fn
-        wget --timeout=5 -O- >/dev/null $url 2>>$fn && wlst="$wlst
+
+echo
+for i in $list; do
+    let n++ ||:
+    fn=$(pn_wget_log $n)
+    url=$i/$arch/$vers/$dtst
+    printf "%02d: $i\n" $n | tee $fn
+    wget --timeout=5 -O- >/dev/null $url 2>>$fn && wlst="$wlst
 $i"
-    done
-fi
+done
+
 
 # RAF: an alternative using dd which can be leveraged to cap the download size
 # wget --timeout=1 -qO- $url | dd bs=1500 count=5k iflag=fullblock of=/dev/null\
