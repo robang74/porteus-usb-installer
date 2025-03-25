@@ -230,6 +230,7 @@ str="script suggests '$tagver' as last tagged, check for updates"
 if isdevel; then
    tagver="main"
    reftyp="heads"
+   perr "-> tag: $tagver (DEVEL: $DEVEL)"
 elif agree "WARNING: $str"; then
     tagnew=$(wget_last_tag $repo)
     if [ -n "$tagnew" ]; then
