@@ -9,7 +9,7 @@
 # MAN:                           ?tab=readme-ov-file#usage-quick--dirty
 #
 # It is suggest testing on a spare machine that does NOT hold valuable data,
-# possibly using a Porteus MATE v5.0.1 with the network support available.
+# possibly using a Porteus MATE v0.3.2 with the network support available.
 #
 ################################################################################
 set +o noclobber
@@ -80,7 +80,7 @@ proj="porteus-usb-installer"
 repo="https://github.com/$user/$proj"
 rawu="https://raw.githubusercontent.com/$user/$proj"
 
-tagver="v0.3.1"
+tagver="v0.3.2"
 reftyp="tags"
 
 ################################################################################
@@ -101,7 +101,7 @@ echo me cmd:$$:$cmd; bash -i <(cat test.sh)
 # 0:/dev/fd/62:2170760 ppid:2170724 pcmd:bash /dev/fd/63
 #                      stat:2170724 (bash) S 1786462 2170724 17
 
-tagver="v0.3.1" # To replace with the lastest available in tags
+tagver="v0.3.2" # To replace with the lastest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
