@@ -127,7 +127,7 @@ tagver="v0.3.1" # To replace with the latest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
-DEVEL=0 # bash -i <(wget -qO- $net_inst_url)
+DEVEL=0 # bash <(wget -qO- $net_inst_url)
 ```
 
 At this point everything is ready to write the USB stick for having the desidered installation. It can be done by the USB installation script which requires `root` privileges. Because mistakes happen, the most safe way to proceed is to create a bootable USB stick in the way you're used to and transfer all the stuff into another USB stick.
@@ -138,9 +138,9 @@ Booting Porteus in RAM-only (Flash) mode, it will be possible to execute the scr
 mkdir -p usbtest; cd usbtest
 wget -qO- http://alturl.com/ggvaa | tar xvz
 mv porteus-usb-installer-main moonwalker
-DEVEL=0 bash -i# moonwalker/porteus-net-install.sh
+DEVEL=0 # bash moonwalker/porteus-net-install.sh
 # or to simulate a remote call
-# DEVEL=0 bash -i# <(cat moonwalker/porteus-net-install.sh)
+# DEVEL=0 # bash <(cat moonwalker/porteus-net-install.sh)
 ```
 
 If &ndash; **for you** &ndash; the shell code above does nothing, then it is ok in that way: do not use it. ;-)
