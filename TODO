@@ -7,6 +7,7 @@
 - check about swapability and add "noswap", which is a performance killer.
 - evaluate to add zram swap for those case can make a difference.
 - ask for selecting the best mirror ONLY when downloading ISO.
+- download ALL the SHA256 checksum files and check for coherence among them.
 
 
 # DEVEL
