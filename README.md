@@ -9,6 +9,7 @@ It creates a bootable USB with 128MB for persistence.
 - Usage: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it] [--ext4-install]`
    - when everything is already local and updated as per the latest ISO.
    - long option creates a USB bootable installation instead of a LIVE.
+   - performances LIVE vs EXT4 may greatly vary depending on USB stick.
 
 - Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
    - when downloading the ISO and retrieving this repo scripts is needed.
