@@ -46,6 +46,8 @@ How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds wit
 
 ### Default choices
 
+This is a list of system choices that I made in advance for customising the Porteus **moonwalker** edition.
+
 1. The script is not executable by default, hence it requires to be run by a shell. An extra caution: even if it requires root password, the session could be already on sudo or root.
 
 2. I [decided](https://chatgpt.com/share/67e01ea8-a0f4-8012-9178-48d1c76337e9) to go without a journal within the persistent loop file because it is saved on a VFAT. It is faster and stresses the USB key less, and thus increases its durability.
@@ -59,6 +61,10 @@ How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds wit
 ---
 
 ### Suggested choices
+
+A set of choices that every Porteus user is going to face soon or later. The suggestions are not intended to be *good for all* but as a reasonable starting point for those whom are not technically skilled and might be puzzled by the great amount of choices that also live distro like Porteus can offer.
+
+Some are *matter of taste* and in that cases, the most widespread options (or likely the most suitable similars) are chosen in order to let the beginners have as much large user-base as possible for asking support. Statistically speaking, giving them the highest chance to find someone that had solved those issues they most probably may face.
 
 Porteus version: **MATE**
 
@@ -101,7 +107,7 @@ Installation tested:
 
 ### Usage, quick & dirty
 
-This little script downloads and immediately puts in execution the network installation . Which download the MATE version of the official Porteus ISO and a compressed archive of this repository chosen from [tags](https://github.com/robang74/porteus-usb-installer/tags) available.
+This little script downloads and immediately puts in execution the network installation . Which download the MATE version of the official Porteus ISO and a compressed archive of this repository chosen from [tags](https://github.com/robang74/porteus-usb-installer/tags) available. Check the [TODO](TODO) for knowing in advance about development and possible shortcomings.
 
 ```
 mkdir -p usbtest; cd usbtest
