@@ -20,7 +20,19 @@ export DEVEL=${DEVEL:-0}
 export sha256_file="sha256sums.txt"
 export mirror_file="porteus-mirror-selected.txt"
 
+## RAF: defined by `net-install` script
+export porteus_version=${porteus_version:-Porteus-v5.1} #current
+export porteus_arch=${porteus_arch:-x86_64}
+export porteus_type=${porteus_type:-MATE}
+
 # RAF: internal values #________________________________________________________
+
+wlst=
+arch="$porteus_arch"
+vers="$porteus_version"
+dtst="kernel/64bit.config"
+## dtst="bundles/man-lite-porteus-20220607-x86_64-alldesktops.xzm"
+## RAF: until the sha256sum.txt files will be restored back, we are tring v5.1
 
 mirror_list="porteus-mirror-allhttps.txt"
 netlog_file="porteus-mirror-selected.log"
@@ -78,7 +90,7 @@ fi
 
 function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
 function wgetlogs_ls() { command ls -1 ??-$wgetlogtail 2>/dev/null ||:; }
-function rm_wget_log() { rm -f $(wgetlogs_ls) *.discarded ??-$sha256_file; }
+function rm_wget_log() { rm -f *$wgetlogtail* *$sha256_file; }
 
 ################################################################################
 if askinghelp; then usage errexit 0;
@@ -92,10 +104,10 @@ perr "-> pwd: $PWD"
 
 list=$(wget -qO- https://porteus.org/porteus-mirrors.html |\
     sed -ne 's,.*<a href="\([^"]*\)".*,\1,p')
-list="$(cat $mirror_list 2>/dev/null ||:)
-$list"
-list=$(echo "$list" | sed -e "s,http:,https:," | sort | uniq)
-echo "$list" | grep . >$mirror_list
+list="$list
+$(cat $mirror_list 2>/dev/null ||:)"
+list=$(echo "$list" | sed -e "s,http:,https:," |\
+     sort | uniq | grep . | tee $mirror_list)
 
 echo
 declare -i nmlst=$(wc -l $mirror_list | cut -d' ' -f1)
@@ -105,34 +117,34 @@ for i in $(echo "$list" | cut -d/ -f3); do
 done >/dev/null 2>&1
 echo "done"
 
-wlst=
-arch=x86_64
-vers=current
-dtst=bundles/man-lite-porteus-20220607-x86_64-alldesktops.xzm
-
 printf "\nDownload speed testing for every mirror, wait.\n"
 echo; #set -x # RAF, TODO: this part is still working in progress... (WIP!!)
 declare -i n=0 errf=-1
 for i in $list STOP; do
-    if [ $errf -eq 0 ]; then
-        printf "\tOK: valid and accepted\n\n"
-    elif [ $errf -eq 1 ]; then
+    if [ $errf -eq 1 ]; then
         mv $fn $fn.invalid
-        printf "\tKO: discarded due to useless or invalid $sha256_file\n\n"
+        printf "KO: discarded due to useless or invalid $sha256_file\n\n"
     elif [ $errf -eq 2 ]; then
         mv $fn $fn.failure
-        printf "\tKO: discarded due to wget downloading failure\n\n"
+        printf "KO: discarded due to wget downloading failure\n\n"
     fi
     test "$i" == "STOP" && break
+    test $errf -eq 0 && printf "\n"
     let n++ ||:; errf=1
     fn=$(pn_wget_log $n)
     url=$i/$arch/$vers
     printf "%02d: $i\n" $n | tee $fn
-    svf=$(printf "%02d" $n)-$sha256_file
-    wget --timeout=5 -qO- $url/$sha256_file >$svf || continue
-    grep -i porteus $svf || continue; errf=2
+    nn=$(printf "%02d" $n); svf=$nn-$sha256_file
+    wget --timeout=5 -qO- $url/$sha256_file >$svf     || continue
+    grep -qi "porteus-${porteus_type}" $svf           || continue
     wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn || continue
-    wlst="$wlst $i"; errf=0
+
+    #ddlm="256" # data transfer in kb
+    #wget --timeout=5 -O- $url/$dtst 2>>$fn |\
+    #    dd of=/dev/null bs=${ddlm}k count=1 iflag=fullblock 2>&1 |\
+    #        sed -ne "s/.* kB, $ddlm KiB)/$nn:\t$ddlm Kib/p"
+
+    wlst="$wlst $i"; errf=0;
 done; # set +x
 
 # RAF: an alternative using dd which can be leveraged to cap the download size
@@ -143,7 +155,7 @@ topl=$(grep "written" $(wgetlogs_ls) /dev/null|\
     sed -e "s,:.*(\(.*\)).*,: \\1," | tr -d . |\
     sed -e "s, MB/s,0 KB/s," | sort -rnk 2)
 if [ ! -n "$topl" ]; then
-    echo "ERROR: no any valid or suitable mirror found, abort!" >&2
+    perr "ERROR: no any valid or suitable mirror found, abort!" >&2
     errexit
 fi
 winr=$(echo "$topl" | head -n1 2>/dev/null ||:)
@@ -157,6 +169,8 @@ echo "Fastest --> $strn <-- $winr"
 echo
 
 echo $strn | cut -d' ' -f2 > $mirror_file
+cat ${winr:0:2}-$sha256_file >$sha256_file
+
 for i in $(wgetlogs_ls); do
     cat $i; printf "===\n\n"
 done > $netlog_file; #rm_wget_log
