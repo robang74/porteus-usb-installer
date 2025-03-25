@@ -36,6 +36,15 @@ function usage() {
     eval "$@"
 }
 
+function search() {
+    local d ldirs=". $wdr" f="${1:-}"
+    test -n "$f" || return 1
+    test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
+    for d in $ldirs; do
+        if [ -d "$d" -a -r $d/$f ]; then echo "$d/$f"; return 0; fi
+    done; return 1
+}
+
 # RAF: basic common check & set #_______________________________________________
 
 if isondemand; then

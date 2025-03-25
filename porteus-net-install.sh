@@ -27,6 +27,7 @@ export DEVEL=${DEVEL:-0}
 # RAF: these values depend by external sources and [TODO] should be shared #____
 
 # RAF: defined by `mirror-selection` script
+export sha256_file=${sha256_file:-sha256sums.txt}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
 export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 
@@ -34,7 +35,6 @@ export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 
 mirrors_script_name="porteus-mirror-selection.sh"
 usbinst_script_name="porteus-usb-install.sh"
-sha256_file="sha256sums.txt"
 
 # RAF: basic common functions #_________________________________________________
 
@@ -51,6 +51,15 @@ function amiroot() {
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
+}
+
+function search() {
+    local d ldirs=". $wdr" f="${1:-}"
+    test -n "$f" || return 1
+    test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
+    for d in $ldirs; do
+        if [ -d "$d" -a -r $d/$f ]; then echo "$d/$f"; return 0; fi
+    done; return 1
 }
 
 # RAF: basic common check & set #_______________________________________________
@@ -154,7 +163,7 @@ elif amiroot; then
     errexit
 elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
-    exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
+    exec bash -E "$d/$shs" "$@"   # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"; errexit -1 # eventually
 else ###########################################################################
 
@@ -188,14 +197,6 @@ function waitdev() {
 function mke4fs() {
     local lbl=$1 dev=$2; shift 2
     mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
-}
-
-function search() {
-    local f="$1"
-    test -n "$f" || return 1
-    if [ -r "$f" ]; then echo "$f"; return 0; fi 
-    if [ -r "$wdr/$f" ]; then echo "$wdr/$f"; return 0; fi
-    return 1
 }
 
 function download() {
@@ -311,18 +312,28 @@ declare -i tms=$(date +%s%N)
 
 download $url $sha256_file
 shf=$(search $sha256_file)
+test -n "$shf" || missing $sha256_file
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
+if ! test -n "$iso" -a -n "$chk" ; then
+    perr "ERROR: no ISO name or its checksum found, abort!"
+    echo "Catalog filename: $sha256_file"
+    echo "---------------- content start -----------------"
+    cat $shf
+    echo "----------------- content end ------------------"
+    errexit
+fi
 perr "INFO: for ISO file '$iso' expecting sha256 is:
       $chk"            
 
-iso=$(search $iso || echo $iso)
-if ! isocheck $iso $chk; then
+isof=$(search $iso || echo $iso)
+if ! isocheck $isof $chk; then
     download -c $url $iso
-    iso=$(search $iso)
-    if ! isocheck  $iso $chk; then
-        mv -f "$iso" "$iso.broken-sha.$RANDOM" # RAF: mktemp here
+    isof=$(search $iso)
+    if ! isocheck  $isof $chk; then
+        mv -f "$isof" "$iso.broken-sha.$RANDOM" # RAF: mktemp here
+        perr "WARNING: file '$isof' moved in $(command ls -1t $iso.broken-sha.* | head -n1)"
         errexit
     fi
 fi

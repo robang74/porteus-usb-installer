@@ -52,6 +52,15 @@ function usage() {
     eval "$@"
 }
 
+function search() {
+    local d ldirs=". $wdr" f="${1:-}"
+    test -n "$f" || return 1
+    test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
+    for d in $ldirs; do
+        if [ -d "$d" -a -r $d/$f ]; then echo "$d/$f"; return 0; fi
+    done; return 1
+}
+
 # RAF: basic common check & set #_______________________________________________
 
 if isondemand; then
@@ -120,13 +129,6 @@ function waitdev() {
 function mke4fs() {
     local lbl=$1 dev=$2; shift 2
     mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
-}
-
-function search() {
-    local f=$1
-    if [ -r "$f" ]; then echo "$f"; return 0; fi
-    if [ -r "$wdr/$f" ]; then echo "$wdr/$f"; return 0; fi
-    return 1
 }
 
 scsi_str=""; scsi_dev="";

@@ -17,6 +17,7 @@ export DEVEL=${DEVEL:-0}
 
 # RAF: these values depend by external sources and [TODO] should be shared #____
 
+export sha256_file="sha256sums.txt"
 export mirror_file="porteus-mirror-selected.txt"
 
 # RAF: internal values #________________________________________________________
@@ -40,6 +41,15 @@ function amiroot() {
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
+}
+
+function search() {
+    local d ldirs=". $wdr" f="${1:-}"
+    test -n "$f" || return 1
+    test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
+    for d in $ldirs; do
+        if [ -d "$d" -a -r $d/$f ]; then echo "$d/$f"; return 0; fi
+    done; return 1
 }
 
 # RAF: basic common check & set #_______________________________________________
@@ -106,12 +116,13 @@ echo
 for i in $list; do
     let n++ ||:
     fn=$(pn_wget_log $n)
-    url=$i/$arch/$vers/$dtst
+    url=$i/$arch/$vers
     printf "%02d: $i\n" $n | tee $fn
-    wget --timeout=5 -O- >/dev/null $url 2>>$fn && wlst="$wlst
+    wget --timeout=5 -O- >/dev/null $url/$dtst 2>>$fn &&\
+        wget --timeout=5 -qO- $url/$sha256_file | grep -qi porteus &&\
+            wlst="$wlst
 $i"
 done
-
 
 # RAF: an alternative using dd which can be leveraged to cap the download size
 # wget --timeout=1 -qO- $url | dd bs=1500 count=5k iflag=fullblock of=/dev/null\
