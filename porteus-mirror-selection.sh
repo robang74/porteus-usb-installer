@@ -9,28 +9,63 @@ set -e
 
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+store_dirn="moonwalker"
 usage_strn="[--clean]"
 
+export DEVEL=${DEVEL:-0}
+
+# RAF: these values depend by external sources and [TODO] should be shared #____
+
+export mirror_file="porteus-mirror-selected.txt"
+
+# RAF: internal values #________________________________________________________
+
 mirror_list="porteus-mirror-allhttps.txt"
-mirror_file="porteus-mirror-selected.txt"
 netlog_file="porteus-mirror-selected.log"
 wgetlogtail="wget-log"
 
-function isdevel() { test "$DEVEL" == "${1:-1}"; }
-function perr() { { echo; echo "$@"; } >&2; }
+# RAF: basic common functions #_________________________________________________
+
+function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
+function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
+function isdevel() { test "${DEVEL:-0}" != "0"; }
+function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
+
+function amiroot() {
+    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
+}
 
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
 
+# RAF: basic common check & set #_______________________________________________
+
+if isondemand; then
+    wdr=$PWD
+    perr "###############################################"
+    perr "This is an on-demand from remote running script"
+    perr "###############################################"
+fi
+
+if isdevel; then
+    perr "download path: $download_path\nworkingd path: $workingd_path"
+else
+    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
+    sudo -k
+fi
+
+# RAF: internal check & set and early functions #_______________________________
+
 function rm_wget_log() { rm -f $(wgetlogs_ls); }
 function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
 function wgetlogs_ls() { command ls -1 ??-$wgetlogtail; }
 
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
-    usage echo
+################################################################################
+if askinghelp; then usage errexit 0;
 elif [ "x$1" == "x--clean" ]; then #############################################
     rm_wget_log; rm -f $mirror_file $netlog_file; printf "\ndone.\n\n"
 else ###########################################################################

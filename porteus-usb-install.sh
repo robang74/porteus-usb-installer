@@ -15,24 +15,32 @@ usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
 export DEVEL=${DEVEL:-0}
 
-# RAF: none of these following variables is used into this script.
-#export workingd_path=$(dirname $(realpath "$0"))
-#export download_path=${download_path:-$PWD/$store_dirn}
-#export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
-#export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
-#export sha256_file=${sha256_file:-sha256sums.txt}
+# RAF: these values depend by external sources and [TODO] should be shared #____
 
-# Comment this line below to have the journal within the persistence loop file
+# RAF: internal values #________________________________________________________
+
+## Name of the loop file for having the persistence with a VFAT only system
+persistnce_filename="changes.dat"
+
+## Comment this line below to have the journal within the persistence loop file
 nojournal="-O ^has_journal"
 
-# This below is the default size in 512-blocks for the persistent loop file
+## This below is the default size in 512-blocks for the persistent loop file
 blocks="256K"
 
-################################################################################
+## Some more options / parameters that might be worth to be customised
+make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -F"
+porteus_config_path="/boot/syslinux/porteus.cfg"
+background_filename="moonwalker-background.jpg"
+bootscreen_filename="moonwalker-bootscreen.png"
+usbsk_init_filename="porteus-usb-bootable.mbr.gz"
 
+# RAF: basic common functions #_________________________________________________
+
+function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
-function perr() { { echo; echo "$@"; } >&2; }
+function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
 function amiroot() {
@@ -43,6 +51,33 @@ function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
+
+# RAF: basic common check & set #_______________________________________________
+
+if isondemand; then
+    wdr=$PWD
+    perr "###############################################"
+    perr "This is an on-demand from remote running script"
+    perr "###############################################"
+fi
+
+if isdevel; then
+    perr "download path: $download_path\nworkingd path: $workingd_path"
+else
+    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
+    sudo -k
+fi
+
+# RAF: internal check & set and early functions #_______________________________
+
+if isondemand; then
+    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
+    perr "       For remote installation, use porteus-net-install.sh, instead"
+    errexit
+fi
+
+################################################################################
+if askinghelp; then usage errexit 0; else ######################################
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing or wrong type, abort!"
@@ -125,14 +160,7 @@ function check_dmsg_for_last_attached_scsi() {
     scsi_str=""; scsi_dev=""         # consumer
 }
 
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
-    usage echo
-else ###########################################################################
-
-if isondemand; then
-    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
-    errexit
-fi
+################################################################################
 
 trap "echo; echo; exit 1" INT
 
@@ -151,12 +179,12 @@ fi
 kmp=${3:-}
 extfs=${4:+4}
 
-sve="changes.dat"
-bgi="moonwalker-background.jpg"
-bsi="moonwalker-bootscreen.png"
-opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
-cfg="/boot/syslinux/porteus.cfg"
-mbr="porteus-usb-bootable.mbr.gz"
+sve=$persistnce_filename
+bgi=$background_filename
+bsi=$bootscreen_filename
+opt=$make_ext4fs_options
+cfg=$porteus_config_path
+mbr=$usbsk_init_filename
 
 # RAF: TODO: here is better to use mktemp, instead
 #

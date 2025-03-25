@@ -1,11 +1,12 @@
 # TODO
 
-- check for the faster Porteus repository only when downloading the ISO
-- test to deal with EXT4 and sync/umount in background while writing VFAT
-- test a different order of umount compared with the current (v0.3.1)
-- write the VFAT in a tmpfs loop and dd in its partition as speed test
-- check about swapability and add "noswap", which is a performance killer
-- evaluate to add zram swap for those case can make a difference 
+- check for the faster Porteus repository only when downloading the ISO.
+- test to deal with EXT4 and sync/umount in background while writing VFAT.
+- test a different order of umount compared with the current (v0.3.1).
+- write the VFAT in a tmpfs loop and dd in its partition as speed test.
+- check about swapability and add "noswap", which is a performance killer.
+- evaluate to add zram swap for those case can make a difference.
+- ask for selecting the best mirror ONLY when downloading ISO.
 
 
 # DEVEL

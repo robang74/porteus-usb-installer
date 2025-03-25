@@ -5,7 +5,7 @@
 # Support for expert users wishing to test on-demand installation starts from
 #
 # URL: https://raw.githubusercontent.com/robang74/porteus-usb-installer
-# VER:                         /refs/tags/v0.3.1/porteus-net-install.sh
+# VER:                         /refs/tags/v0.3.2/porteus-net-install.sh
 # MAN:                           ?tab=readme-ov-file#usage-quick--dirty
 #
 # It is suggest testing on a spare machine that does NOT hold valuable data,
@@ -22,21 +22,23 @@ shs=$(basename "$0")
 store_dirn="moonwalker"
 usage_strn="[<type> <url> <arch> <vers>] [/dev/sdx] [it]"
 
-test -n "$DEVEL" || export DEVEL=0;
+export DEVEL=${DEVEL:-0}
 
-# This values depend by external sources and [TODO] should be shared here
+# RAF: these values depend by external sources and [TODO] should be shared #____
 
-export workingd_path=$(dirname $(realpath "$0"))
-export download_path=${download_path:-$PWD}
-if [ "$(basename $PWD)" != "$store_dirn" ]; then
-    download_path="$download_path/$store_dirn"
-fi
+# RAF: defined by `mirror-selection` script
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
 export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
-export sha256_file=${sha256_file:-sha256sums.txt}
 
+# RAF: internal values #________________________________________________________
+
+sha256_file="sha256sums.txt"
+
+# RAF: basic common functions #_________________________________________________
+
+function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
-function isdevel() { test "$DEVEL" == "${1:-1}"; }
+function isdevel() { test "${DEVEL:-0}" != "0"; }
 function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
@@ -49,6 +51,15 @@ function usage() {
     eval "$@"
 }
 
+# RAF: basic common check & set #_______________________________________________
+
+if isondemand; then
+    wdr=$PWD
+    perr "###############################################"
+    perr "This is an on-demand from remote running script"
+    perr "###############################################"
+fi
+
 if isdevel; then
     perr "download path: $download_path\nworkingd path: $workingd_path"
 else
@@ -56,8 +67,25 @@ else
     sudo -k
 fi
 
+# RAF: internal check & set and early functions #_______________________________
+
+workingd_path=$(dirname $(realpath "$0"))
+download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
+
+user="robang74"
+proj="porteus-usb-installer"
+repo="https://github.com/$user/$proj"
+rawu="https://raw.githubusercontent.com/$user/$proj"
+
+tagver="v0.3.1"
+reftyp="tags"
+
 ################################################################################
-if false; then errexit #////////////////////////////////////////////////////////
+if askinghelp; then usage errexit 0; elif false; then errexit
+#///////////////////////////////////////////////////////////////////////////////
 
 echo '#!/bin/bash
 stat=$(head -c35 /proc/$PPID/stat)
@@ -79,10 +107,8 @@ rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
 DEVEL=0 # bash -i <(wget -qO- $net_inst_url)
 
-fi #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-################################################################################
-# set -x
-if [ "x$1" == "x--clean" ]; then
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+elif [ "x$1" == "x--clean" ]; then #############################################
     if amiroot; then
         if [ ! -n "${SUDO_USER}" ]; then
             perr "ERROR: try as user, variable \$SUDO_USER is void/unset, abort!"
@@ -128,12 +154,7 @@ elif [ "$download_path" == "$workingd_path" ]; then # Avoid to over-write myself
     d="$download_path/tmp"; mkdir -p "$d"; cp -f "$0" "$d/$shs"
     exec bash "$d/$shs" "$@"   # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"; errexit -1 # eventually
-else
-    mkdir -p "$download_path"
-    pushd "$download_path" >/dev/null
-    perr "-> pwd: $PWD"
-# set +x
-################################################################################
+else ###########################################################################
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing, abort!"
@@ -168,7 +189,8 @@ function mke4fs() {
 }
 
 function search() {
-    local f=$1
+    local f="$1"
+    test -n "$f" || return 1
     if [ -r "$f" ]; then echo "$f"; return 0; fi 
     if [ -r "$wdr/$f" ]; then echo "$wdr/$f"; return 0; fi
     return 1
@@ -210,21 +232,13 @@ function wget_last_tag() {
 
 ################################################################################
 
-if isondemand; then
-    perr "###############################################"
-    perr "This is an on-demand from remote running script"
-    perr "###############################################"
-fi
+trap "echo; echo; exit 1" INT
+
+mkdir -p "$download_path"
+pushd "$download_path" >/dev/null
+perr "-> pwd: $PWD"
 
 # Deciding which version download from the repo
-
-user="robang74"
-proj="porteus-usb-installer"
-repo="https://github.com/$user/$proj"
-rawu="https://raw.githubusercontent.com/$user/$proj"
-
-tagver="v0.3.1"
-reftyp="tags"
 
 str="script suggests '$tagver' as last tagged, check for updates"
 if isdevel; then
@@ -301,12 +315,15 @@ shf=$(search $sha256_file)
 chk=$(grep -ie "porteus.*-${type}-.*.iso" $shf | cut -d' ' -f1)
 iso=$(grep -ie "porteus.*-${type}-.*.iso" $shf | tr -s ' ' | cut -d' ' -f2)
 
+perr "INFO: for ISO file '$iso' expecting sha256 is:
+      $chk"            
+
 iso=$(search $iso || echo $iso)
 if ! isocheck $iso $chk; then
     download -c $url $iso
     iso=$(search $iso)
     if ! isocheck  $iso $chk; then
-        rm -f $iso
+        mv -f "$iso" "$iso.broken-sha.$RANDOM" # RAF: mktemp here
         errexit
     fi
 fi

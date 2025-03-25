@@ -9,26 +9,59 @@ set -e
 
 wdr=$(dirname "$0")
 shs=$(basename "$0")
+
+store_dirn="moonwalker"
 usage_strn="/path/file.iso it <boot.iso | /dev/sdX --write-on-device>"
 
-function isdevel() { test "$DEVEL" == "${1:-1}"; }
-function perr() { { echo; echo "$@"; } >&2; }
+export DEVEL=${DEVEL:-0}
+
+# RAF: these values depend by external sources and [TODO] should be shared #____
+
+# RAF: internal values #________________________________________________________
+
+# RAF: basic common functions #_________________________________________________
+
+function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
+function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
+function isdevel() { test "${DEVEL:-0}" != "0"; }
+function perr() { { echo; echo -e "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
+
+function amiroot() {
+    test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
+}
 
 function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
 
-if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
-    usage echo
-else ###########################################################################
+# RAF: basic common check & set #_______________________________________________
 
-trap "echo; echo; exit 1" INT
+if isondemand; then
+    wdr=$PWD
+    perr "###############################################"
+    perr "This is an on-demand from remote running script"
+    perr "###############################################"
+fi
+
+if isdevel; then
+    perr "download path: $download_path\nworkingd path: $workingd_path"
+else
+    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
+    sudo -k
+fi
+
+# RAF: internal check & set and early functions #_______________________________
 
 isodd() { dd ${2:+if=$2} bs=1M $1 status=none; }
 isoch() { isodd count=1 $1 | sed -e "s,# kmap=br,kmap=$2  ,"; isodd skip=1 $1; }
 isodo() { isoch $1 $2 | isodd of=$3; sync $3; }
+
+################################################################################
+if askinghelp; then usage errexit 0; else ######################################
+
+trap "echo; echo; exit 1" INT
 
 if ! test -r "$1" -a -n "$2" -a -n "$3"; then
     usage errexit 1
