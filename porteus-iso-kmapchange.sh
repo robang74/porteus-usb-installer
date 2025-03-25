@@ -45,6 +45,12 @@ if isondemand; then
     perr "###############################################"
 fi
 
+workingd_path=$(dirname $(realpath "$0"))
+download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
+
 if isdevel; then
     perr "download path: $download_path\nworkingd path: $workingd_path"
 else

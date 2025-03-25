@@ -32,6 +32,8 @@ export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 
 # RAF: internal values #________________________________________________________
 
+mirrors_script_name="porteus-mirror-selection.sh"
+usbinst_script_name="porteus-usb-install.sh"
 sha256_file="sha256sums.txt"
 
 # RAF: basic common functions #_________________________________________________
@@ -60,6 +62,12 @@ if isondemand; then
     perr "###############################################"
 fi
 
+workingd_path=$(dirname $(realpath "$0"))
+download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
+
 if isdevel; then
     perr "download path: $download_path\nworkingd path: $workingd_path"
 else
@@ -68,12 +76,6 @@ else
 fi
 
 # RAF: internal check & set and early functions #_______________________________
-
-workingd_path=$(dirname $(realpath "$0"))
-download_path=${download_path:-$PWD}
-if [ "$(basename $PWD)" != "$store_dirn" ]; then
-    download_path="$download_path/$store_dirn"
-fi
 
 user="robang74"
 proj="porteus-usb-installer"
@@ -260,9 +262,6 @@ fi
 zpkg="$tagver.tar.gz"
 zpkg_url="$repo/archive/refs/$reftyp"
 rawc_url="$rawu/refs/$reftyp/$tagver"
-
-mirrors_script_name="porteus-mirror-selection.sh"
-usbinst_script_name="porteus-usb-install.sh"
 
 ################################################################################
 

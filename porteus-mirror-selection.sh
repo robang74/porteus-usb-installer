@@ -51,6 +51,12 @@ if isondemand; then
     perr "###############################################"
 fi
 
+workingd_path=$(dirname $(realpath "$0"))
+download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
+
 if isdevel; then
     perr "download path: $download_path\nworkingd path: $workingd_path"
 else
@@ -62,7 +68,7 @@ fi
 
 function rm_wget_log() { rm -f $(wgetlogs_ls); }
 function pn_wget_log() { printf "%02d-$wgetlogtail" $1; }
-function wgetlogs_ls() { command ls -1 ??-$wgetlogtail; }
+function wgetlogs_ls() { command ls -1 ??-$wgetlogtail 2>/dev/null ||:; }
 
 ################################################################################
 if askinghelp; then usage errexit 0;
@@ -100,7 +106,7 @@ if ! isdevel; then
         fn=$(pn_wget_log $n)
         url=$i/$arch/$vers/$dtst
         printf "%02d: $i\n" $n | tee $fn
-        wget --timeout=1 -O- >/dev/null $url 2>>$fn && wlst="$wlst
+        wget --timeout=5 -O- >/dev/null $url 2>>$fn && wlst="$wlst
 $i"
     done
 fi
@@ -109,7 +115,7 @@ fi
 # wget --timeout=1 -qO- $url | dd bs=1500 count=5k iflag=fullblock of=/dev/null\
 #   2>&1 | sed -ne "/bytes/s/.* s, \(.*\)/\\1/p" | tr [gmk] [GMK]
 
-topl=$(grep "written" $(wgetlogs_ls)|\
+topl=$(grep "written" $(wgetlogs_ls) /dev/null|\
     sed -e "s,:.*(\(.*\)).*,: \\1," | tr -d . |\
     sed -e "s, MB/s,0 KB/s," | sort -rnk 2)
 winr=$(echo "$topl" | head -n1)
