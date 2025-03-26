@@ -10,6 +10,7 @@ It creates a bootable USB with 128MB for persistence.
    - when everything is already local and updated as per the latest ISO.
    - long option creates a USB bootable installation instead of a LIVE.
    - performances LIVE vs EXT4 may greatly vary depending on USB stick.
+   - first EXT4 installation boot is **slow** because lazy mkfs options.
 
 - Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
    - when downloading the ISO and retrieving this repo scripts is needed.
