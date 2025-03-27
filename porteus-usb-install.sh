@@ -449,11 +449,15 @@ for i in 1 2; do
 done
 
 # Say goodbye and exit
+udsc1=$(fdisk -l /dev/${dev} | head -n2 | cut -d' ' -f2- | cut -d, -f1 | sed -e 's,\(model:\), \1,')
+udsc2=$(for i in 1 2; do eval $(blkid -o export /dev/${dev}$i); printf "$DEVNAME $LABEL $TYPE\n"; done)
 while ! eject /dev/${dev}
     do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 if [ $extfs -eq 4 ]; then str="EXT4"; else str="LIVE"; fi
-printf \\n"INFO: Creation $str usbstick completed in $tms seconds."\\n
+printf \\n"INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
+printf    "      $udsc1"  | tr '\n' '\t'; echo
+printf    "      $udsc2"  | tr '\n' '\t'; echo
 printf \\n"DONE: Your bootable USB key ready to be removed safely."\\n\\n
 trap - EXIT
 
