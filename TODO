@@ -8,6 +8,7 @@
 - evaluate to add zram swap for those case can make a difference.
 - ask for selecting the best mirror ONLY when downloading ISO.
 - download ALL the SHA256 checksum files and check for coherence among them.
+- include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
 
 
 # DEVEL
