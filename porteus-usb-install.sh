@@ -321,26 +321,29 @@ done
 printf "INFO: writing the MBR and preparing essential partitions ... "
 zcat ${mbr} | $time dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
 waitdev ${dev}1
-if [ $extfs -eq 4 ]; then
+if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
         tr _ '\n' | fdisk /dev/${dev}    
     waitdev ${dev}2
     mke4fs "Porteus" /dev/${dev}2 $nojournal
-else
+else # ----------------------------------------------------------------- VFAT --
+    $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk /dev/${dev}
     waitdev ${dev}2
-    $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     mke4fs "Portdata" /dev/${dev}2 $nojournal
-fi >$redir
+fi >$redir # -------------------------------------------------------------------
 
-# Create a loop file in tmpfs [TODO: check /tmp is tmpfs]
-printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
-mount -t tmpfs tmpfs ${dst}
-nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
-dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
-$time mkfs.vfat -n EFIBOOT ${dst}/vfat.img 2>&1
-mount -o loop ${dst}/vfat.img ${dst}
+if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
+    printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
+    mount -t tmpfs tmpfs ${dst}
+    nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
+    dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
+    $time mkfs.vfat -n EFIBOOT ${dst}/vfat.img 2>&1
+    mount -o loop ${dst}/vfat.img ${dst}
+else # ----------------------------------------------------------------- VFAT --
+    mount -o async,noatime /dev/${dev}1 ${dst}
+fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file
 mount -o loop,ro ${iso} ${src}
@@ -355,20 +358,20 @@ if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
 fi
 
 # Creating persistence loop filesystem or umount
-if [ $extfs -eq 4 ]; then
+if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     umount ${dst}
     printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
     $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
         grep -v records
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
-else
+else # ----------------------------------------------------------------- VFAT --
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
     mke4fs "changes" ${sve} ${nojournal} >$redir
     d=${dst}/porteus; mkdir -p $d
     cp -f ${sve} $d; rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
-fi
+fi # ---------------------------------------------------------------------------
 
 # Copying Porteus system and modules from ISO file
 printf "INFO: copying Porteus core system files ... "
