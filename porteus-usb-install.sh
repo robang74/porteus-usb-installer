@@ -312,18 +312,15 @@ mkdir -p ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 printf "INFO: invalidating all previous filesystem signatures, wait..."\\n
-$time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1 | grep -v "offset 0x"
 # RAF: zeroing the filesystem signatures prevents automounting (for busybox)
-if false; then
-    wipesign="-w always -W always"
-    if ! fdisk --help | grep -q -- "-w"; then
-        for i in /dev/${dev}?; do
-            if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-            dd if=/dev/zero bs=1M count=4 of=$i oflag=dsync status=none
-        done
-        wipesign=""
-    fi
-fi
+#if which wipefs >/dev/null; then
+    $time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1 | grep -v "offset 0x"
+#else
+    for i in /dev/${dev}?; do
+        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+        dd if=/dev/zero bs=16k count=1 of=$i oflag=dsync status=none
+    done; #echo "done."
+#fi
 
 # Write MBR and essential partition table
 printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n
