@@ -7,10 +7,11 @@ It creates a bootable USB with 128MB for persistence.
 - Background image source: [Newsweek](https://www.newsweek.com/government-report-new-space-race-nasa-china-1736843)
 
 - Usage: `bash porteus-usb-install.sh /path/file.iso [/dev/]sdx [it] [--ext4-install]`
-   - when everything is already local and updated as per the latest ISO.
-   - long option creates a USB bootable installation instead of a LIVE.
-   - performances LIVE vs EXT4 may greatly vary depending on USB stick.
-   - first EXT4 installation boot is **slow** because lazy mkfs options.
+   - When everything is already local and updated as per the latest ISO.
+   - Long option creates a USB bootable installation instead of a LIVE.
+   - Performances LIVE vs EXT4 may greatly vary depending on USB stick.
+   - First EXT4 installation boot is **slow** because lazy mkfs options.
+   - Some USB2 sticks allow legacy boot only, it may be disabled in BIOS.
 
 - Usage: `bash porteus-net-install.sh [<type> <url> <arch> <vers>] [/dev/sdx] [it]`
    - when downloading the ISO and retrieving this repo scripts is needed.
