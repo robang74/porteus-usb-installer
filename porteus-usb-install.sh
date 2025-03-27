@@ -40,7 +40,7 @@ usbsk_init_filename="porteus-usb-bootable.mbr.gz"
 function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
-function perr() { { echo; echo -e "$@"; } >&2; }
+function perr() { { printf "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
 function amiroot() {
@@ -48,7 +48,7 @@ function amiroot() {
 }
 
 function usage() {
-    perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
+    printf \\n"USAGE: bash ${shs:-$(basename $0)} $usage_strn"\\n
     eval "$@"
 }
 
@@ -65,9 +65,9 @@ function search() {
 
 if isondemand; then
     wdr=$PWD
-    perr "###############################################"
-    perr "This is an on-demand from remote running script"
-    perr "###############################################"
+    perr \\n"###############################################"
+    perr \\n"This is an on-demand from remote running script"
+    perr \\n"###############################################"\\n\\n
 fi
 
 workingd_path=$(dirname $(realpath "$0"))
@@ -77,7 +77,7 @@ if [ "$(basename $PWD)" != "$store_dirn" ]; then
 fi
 
 if isdevel; then
-    perr "download path: $download_path\nworkingd path: $workingd_path"
+    perr \\n"download path: $download_path\nworkingd path: $workingd_path"\\n
 else
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     sudo -k
@@ -86,8 +86,8 @@ fi
 # RAF: internal check & set and early functions #_______________________________
 
 if isondemand; then
-    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
-    perr "       For remote installation, use porteus-net-install.sh, instead"
+    perr \\n"ERROR: this script is NOT supposed being executed on-demand, abort!"
+    perr \\n"       For remote installation, use porteus-net-install.sh, instead"\\n
     errexit
 fi
 
@@ -95,7 +95,7 @@ fi
 if askinghelp; then usage errexit 0; else ######################################
 
 function missing() {
-    perr "ERROR: file '${1:-}' is missing or wrong type, abort!"
+    perr \\n"ERROR: file '${1:-}' is missing or wrong type, abort!"\\n
     errexit
 }
 
@@ -122,7 +122,7 @@ function waitdev() {
         fi; printf .
         sleep 0.1
     done
-    perr "ERROR: waitdev('$1') failed, abort!"
+    perr \\n"ERROR: waitdev('$1') failed, abort!"\\n
     errexit
 }
 
@@ -146,19 +146,20 @@ function find_last_attached_scsi_unit() {
 
 function check_last_attached_scsi_unit() {
     local dev=$1
+    echo
     if [ ! -b /dev/$dev ]; then
-        perr "WARNING: error '${dev:+/dev/$dev}' is not a block device, abort!"
+        perr "WARNING: error '${dev:+/dev/$dev}' is not a block device, abort!"\\n
         errexit
     fi
     if [ ! -n "$scsi_dev" ]; then
-        perr "WARNING: to write on '/dev/$dev' but unable to find the last attached unit"
+        perr "WARNING: to write on '/dev/$dev' but unable to find the last attached unit."\\n
         besure || errexit
     elif [ "$scsi_dev" != "$dev" ]; then
-        perr "WARNING: to write on '/dev/$dev' but '/dev/$scsi_dev' is the last attached unit"
-        perr "$scsi_str"
+        perr "WARNING: to write on '/dev/$dev' but '/dev/$scsi_dev' is the last attached unit."\\n
+        perr \\n"$scsi_str"\\n
         besure || errexit
     else
-        perr "$scsi_str"
+        echo "$scsi_str"
     fi
 }
 
@@ -170,7 +171,7 @@ function check_dmsg_for_last_attached_scsi() {
 
 ################################################################################
 
-trap "echo; echo; exit 1" INT
+trap 'printf "\n\n"; exit 1' INT
 
 declare -i extfs=0 usrmn=0
 
@@ -194,11 +195,6 @@ opt=$make_ext4fs_options
 cfg=$porteus_config_path
 mbr=$usbsk_init_filename
 
-# RAF: TODO: here is better to use mktemp, instead
-#
-dst="/tmp/usb"
-src="/tmp/iso"
-
 if [ "$usrmn" == "0" ]; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
     test -b "/dev/$dev" || usage missing "${dev:+/dev/}${dev:-block_device}"
@@ -216,13 +212,13 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || usage missing "$mbr"
 
 if ! amiroot; then
-    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})"
+    perr \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})."\\n
     echo
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     isdevel || sudo -k
     test "$usrmn" != "0" && set -- "--user-menu"
     exec sudo -E bash $0 "$@" # exec replaces this process, no return from here
-    perr "ERROR: exec fails or a bug hits here, abort!"
+    perr \\n"ERROR: exec fails or a bug hits here, abort!"\\n
     errexit -1
 fi
 
@@ -239,10 +235,12 @@ if [ "$usrmn" != "0" ]; then
     while true; do
         find_last_attached_scsi_unit
         test -b /dev/$scsi_dev && break
-        perr "Waiting for the USB stick insertion, press ENTER to continue"
-        read; sleep 1
+        echo
+        read -p "Waiting for the USB stick insertion, press ENTER to continue";
+        sleep 1
     done
-    perr "$scsi_str"
+    echo
+    echo "$scsi_str"
     agree "This above is the last unit attached, select it" || usage errexit
     dev=$scsi_dev
 
@@ -280,12 +278,20 @@ redir="/dev/null"; isdevel && redir="/dev/stdout"
 
 ################################################################################
 
-perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
+trap 'for i in $src $dst $dst; do umount $i 2>/dev/null||:; done &' EXIT
+
+# RAF: TODO: here is better to use mktemp, instead
+#
+dst="/tmp/usb"
+src="/tmp/iso"
+
+echo
+echo "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}; echo
       mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
-perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
+perr \\n"WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"\\n
 besure || errexit
 if [ "$usrmn" == "0" ]; then
     check_dmsg_for_last_attached_scsi "$dev"
@@ -296,7 +302,7 @@ umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}* 2>/dev/null || true 
 echo
 if mount | grep /dev/${dev}; then
-    perr "ERROR: device /dev/${dev} is busy, abort!"
+    perr \\n"ERROR: device /dev/${dev} is busy, abort!"\\n
     errexit
 fi
 mkdir -p ${dst} ${src}
@@ -311,8 +317,8 @@ for i in /dev/${dev}?; do
 done
 
 # Write MBR and basic partition table
-perr "writing the MBR and basic partition table..."
-$time zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
+printf "INFO: writing the MBR and basic partition table ... "
+$time zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
 waitdev ${dev}1
 
 # exit 0
@@ -331,7 +337,7 @@ else
 fi >$redir
 
 # Create a loop file in tmpfs [TODO: check /tmp is tmpfs]
-perr "INFO: creating a loop file in tmpfs for the VFAT partition..."
+printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
 mount -t tmpfs tmpfs ${dst}
 nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
 dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
@@ -339,23 +345,21 @@ $time mkfs.vfat -n EFIBOOT ${dst}/vfat.img
 mount -o loop ${dst}/vfat.img ${dst}
 
 # Copying Porteus EFI/boot files from ISO file
-if true; then
-    perr "INFO: copying Porteus EFI/boot files from ISO file..."
-    mount -o loop,ro ${iso} ${src}
-    $time cp -arf ${src}/boot ${src}/EFI ${dst}
-    test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-    str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
-    sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
-    grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
-    if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
-        perr "INFO: custom boot screen background '${bsi}' copied"
-    fi
+mount -o loop,ro ${iso} ${src}
+printf "INFO: copying Porteus EFI/boot files from ISO file ... "
+$time cp -arf ${src}/boot ${src}/EFI ${dst} 2>&1
+test -r ${dst}/${cfg} || missing ${dst}/${cfg}
+str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
+sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
+grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
+if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
+    printf \\n"INFO: custom boot screen background '${bsi}' copied"\\n
 fi
 
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
-    perr "INFO: waiting for VFAT image synchronisation..."
-    umount ${dst};
+    umount ${dst}
+    printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
     $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
         grep -v records
     rm -f ${dst}/vfat.img; umount ${dst}
@@ -369,44 +373,47 @@ else
 fi
 
 # Copying Porteus system and modules from ISO file
-echo "INFO: copying Porteus core system files..." >&2
-$time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1 | tr '\n' ' '
-if test -n "${bsi}"; then
+printf "INFO: copying Porteus core system files ... "
+$time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1
+if [ -n "${bsi}" ]; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    echo
-    perr "INFO: custom background '${bgi}' copied"
+    printf "INFO: custom background '${bgi}' copied"\\n
 fi
 
-#perr "INFO: waiting for LAST umount synchronisation..."
+#printf "\nINFO: waiting for LAST umount synchronisation...\n"
 #$time sync -f ${dst}/*.txt
 
 set +xe
 # Umount source and eject USB device
-perr "INFO: waiting for the umount synchronisation..." >&2
-$time umount ${src} ${dst} 2>&1 | tr '\n' ' '
-umount /dev/${dev}* 2>/dev/null
+printf \\n"INFO: long waiting for the umount synchronisation ... " >&2
+$time umount ${src} ${dst} /dev/${dev}* 2>&1 | grep "real:"
+for i in ${src} ${dst}; do    
+    for n in 1 2 3; do mount | grep -q $i && umount $i; done
+done 2>/dev/null
+{ mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
 
 if false; then
-perr "INFO: creating the journal and then checking, wait..."
+printf \\n"INFO: creating the journal and then checking, wait..."\\n
 $time tune2fs -j /dev/${dev}2
-else echo; fi
-
-fsck -yf /dev/${dev}1
-echo; fsck -yf /dev/${dev}2
+fi
+for i in 1 2; do
+    for n in 1 2 3; do
+        echo
+        fsck -yf /dev/${dev}$i && break
+    done
+done
 while ! eject /dev/${dev};
     do sleep 1; done
 
 # Say goodbye and exit
 
-echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
-echo "INFO: Installation completed in $tms seconds"
-echo
-echo "DONE: bootable USB key ready to be removed safely"
-echo
+printf \\n"INFO: Installation completed in $tms seconds"\\n
+printf \\n"DONE: bootable USB key ready to be removed safely"\\n\\n
+trap - EXIT
 
 fi #############################################################################
 
