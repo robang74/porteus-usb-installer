@@ -119,7 +119,7 @@ function waitdev() {
             #sleep 1
             #umount /dev/$dev* 2>/dev/null ||:
             return 0
-        fi
+        fi; printf .
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
@@ -128,7 +128,7 @@ function waitdev() {
 
 function mke4fs() {
     local lbl=$1 dev=$2; shift 2
-    mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
+    $time mkfs.ext4 -L "$lbl" -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
 }
 
 scsi_str=""; scsi_dev="";
@@ -271,8 +271,9 @@ fi
 test -n "$kmp" && kmp="kmap=$kmp"
 
 # Deciding about time keeping and its format
-time=""; isdevel && time=$(which time)
-time=${time:+$time -freal:%es}
+# time=""; isdevel && time=$(which time)
+time=$(which time)
+time=${time:+$time -freal:"%es\n"}
 
 # Deciding about output redirection
 redir="/dev/null"; isdevel && redir="/dev/stdout"
@@ -317,30 +318,30 @@ waitdev ${dev}1
 # Prepare partitions and filesystems
 if [ $extfs -eq 4 ]; then
     printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
-        tr _ '\n' | fdisk /dev/${dev}
+        tr _ '\n' | fdisk /dev/${dev}    
     waitdev ${dev}2
-    mkfs.vfat -n EFIBOOT /dev/${dev}1
-    mke4fs "Porteus" /dev/${dev}2 #$nojournal
+    mke4fs "Porteus" /dev/${dev}2 $nojournal
 else
-    mkfs.vfat -n Porteus /dev/${dev}1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk /dev/${dev}
     waitdev ${dev}2
-    mke4fs "Portdata" /dev/${dev}2
+    $time mkfs.vfat -n Porteus /dev/${dev}1
+    mke4fs "Portdata" /dev/${dev}2 $nojournal
 fi >$redir
 
-# Mount source and destination devices
-echo
-mkdir -p ${dst} ${src};
-mount -o async,noatime /dev/${dev}1 ${dst}
-mount -o loop ${iso} ${src}
+# Create a loop file in tmpfs [TODO: check /tmp is tmpfs]
+mount -t tmpfs tmpfs ${dst}
+nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
+dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
+$time mkfs.vfat -n EFIBOOT ${dst}/vfat.img
+mount -o loop ${dst}/vfat.img ${dst}
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
+    mount -o loop ${iso} ${src}
     perr "INFO: copying Porteus EFI/boot files from ISO file..."
     $time cp -arf ${src}/boot ${src}/EFI ${dst}
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-    echo
     str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
     sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
     grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
@@ -351,8 +352,10 @@ fi
 
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
-    perr "INFO: waiting for VFAT umount synchronisation..."
-    $time umount ${dst} 2>&1 | tr '\n' ' '
+    perr "INFO: waiting for VFAT image synchronisation..."
+    umount ${dst}; rm -f ${dst}/vfat.img; umount ${dst}
+    $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
+        grep -v records
     mount -o async,noatime /dev/${dev}2 ${dst}
 else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
@@ -363,22 +366,32 @@ else
 fi
 
 # Copying Porteus system and modules from ISO file
-perr "INFO: copying Porteus core system files..."
+echo "INFO: copying Porteus core system files..." >&2
 $time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1 | tr '\n' ' '
 if test -n "${bsi}"; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
+    echo
     perr "INFO: custom background '${bgi}' copied"
 fi
 
+#perr "INFO: waiting for LAST umount synchronisation..."
+#$time sync -f ${dst}/*.txt
+
 set +xe
 # Umount source and eject USB device
-perr "INFO: waiting for LAST umount synchronisation..."
+perr "INFO: waiting for LAST umount synchronisation..." >&2
 $time umount ${src} ${dst} 2>&1 | tr '\n' ' '
 umount /dev/${dev}* 2>/dev/null
-echo; fsck -yf /dev/${dev}1
+
+if true; then
+perr "INFO: syncing while creating the journal, wait..."
+$time tune2fs -j /dev/${dev}2
+else echo; fi
+
+fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
 while ! eject /dev/${dev};
     do sleep 1; done
