@@ -117,9 +117,6 @@ function waitdev() {
     local i
     partprobe; for i in $(seq 1 100); do
         if grep -q " $1$" /proc/partitions; then
-            # RAF: zeroing the filesystem signatures prevents automounting
-            #sleep 1
-            #umount /dev/$dev* 2>/dev/null ||:
             return 0
         fi; printf .
         sleep 0.1
@@ -313,32 +310,48 @@ mkdir -p ${dst} ${src}
 # Keep the time from here
 declare -i tms=$(date +%s%N)
 
-# RAF: zeroing the filesystem signatures prevents automounting
-for i in /dev/${dev}?; do
-    if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-    dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
-done
+# RAF: zeroing the filesystem signatures prevents automounting (for busybox)
+wipesign="todo"
+if ! fdisk --help | grep -q -- "-w"; then
+    for i in /dev/${dev}?; do
+        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+        dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
+    done
+    wipesign=""
+fi
 
 # Write MBR and essential partition table
 printf "INFO: writing the MBR and preparing essential partitions ... "
 zcat ${mbr} | $time dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
+
+function smart_make_ext4() {
+    waitdev ${dev}2
+    declare -i ng max=32 #RAF, TODO: differentiate 2.0 from 3.0, also helps
+    local j=${make_ext4_nojournal}
+    ng=$(fdisk -l /dev/sda | sed -ne "s/.*: \([0-9]*\)[0-9.]* GiB,.*/\\1/p")
+    if [ $ng -ge $max -a "$journal" == "yes" ]; then
+        perr "INFO: usbstick size $ng GiB > $max Gib, making lazy journaled ext4."\\n
+        j=""
+    fi
+    mke4fs "$1" /dev/${dev}2 $j
+}
+
 waitdev ${dev}1
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
-        tr _ '\n' | fdisk /dev/${dev}    
-    waitdev ${dev}2
-    mke4fs "Porteus" /dev/${dev}2 ${make_ext4_nojournal}
+        tr _ '\n' | fdisk ${wipesign:+-w} always /dev/${dev}    
+    smart_make_ext4 "Porteus"
 else # ----------------------------------------------------------------- VFAT --
     $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
-        fdisk /dev/${dev}
-    waitdev ${dev}2
-    mke4fs "Portdata" /dev/${dev}2 ${make_ext4_nojournal}
+        fdisk ${wipesign:+-w} always /dev/${dev}
+    smart_make_ext4 "Portdata"
 fi >$redir # -------------------------------------------------------------------
 
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
     mount -t tmpfs tmpfs ${dst}
+    declare -i nb
     nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
     $time mkfs.vfat -n EFIBOOT ${dst}/vfat.img 2>&1
@@ -398,7 +411,7 @@ for i in ${src} ${dst}; do
 done 2>/dev/null
 { mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
 
-if [ "$journal" == "yes" ]; then
+if [ "$journal" == "yes" ]; then #$ng -lt 16 -a
     printf \\n"INFO: creating the journal and then checking, wait..."\\n
     $time tune2fs -j /dev/${dev}2 2>&1
 else echo; fi
