@@ -287,7 +287,8 @@ echo
 echo "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}; echo
-      mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
+      mount | cut -d\( -f1 | grep "/dev/${dev}" | sort -n \
+  | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
 besure "WARNING
 WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!
@@ -310,14 +311,18 @@ mkdir -p ${dst} ${src}
 # Keep the time from here
 declare -i tms=$(date +%s%N)
 
+printf "INFO: invalidating all previous filesystem signatures, wait..."\\n
+$time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1 | grep -v "offset 0x"
 # RAF: zeroing the filesystem signatures prevents automounting (for busybox)
-wipesign="-w always -W always"
-if ! fdisk --help | grep -q -- "-w"; then
-    for i in /dev/${dev}?; do
-        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-        dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
-    done
-    wipesign=""
+if false; then
+    wipesign="-w always -W always"
+    if ! fdisk --help | grep -q -- "-w"; then
+        for i in /dev/${dev}?; do
+            if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+            dd if=/dev/zero bs=1M count=4 of=$i oflag=dsync status=none
+        done
+        wipesign=""
+    fi
 fi
 
 # Write MBR and essential partition table
@@ -326,35 +331,42 @@ zcat ${mbr} | { $time dd bs=1M of=/dev/${dev} oflag=dsync \
     2>&1 || errexit; } | grep -v records 
 waitdev ${dev}1
 
-function smart_make_ext4() {
-    declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
-    local j
-    ng=$(fdisk -l /dev/${dev} | grep /dev/${dev}1 | tr -d '*' | tr -s ' ' | cut -d ' ' -f4)
-    if [ $ng -le $max -a "$journal" == "yes" ]; then
-        perr "INFO: usbstick size $ng GiB < $max Gib, do journal at the end."\\n
-        j=${make_ext4_nojournal}
-    fi
-    mke4fs "$1" /dev/${dev}2 $j
+function get_part_size() {
+    #local d=/dev/${dev}; 
+    #fdisk -o "device,sectors" -l $d | sed -ne "s,${d}$1 *,,p"
+
+    #fdisk -l /dev/${dev}$1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p"
+    #ng=$(fdisk -l /dev/${dev} | grep /dev/${dev}1 | tr -d '*' | tr -s ' ' | cut -d ' ' -f4)
+    # RAF: useful for busybox fdisk version
+
+    blockdev --getsz /dev/${dev}$1
 }
 
-function get_part_size() {
-    local d=/dev/${dev}
-    fdisk -o "device,sectors" -l $d | sed -ne "s,${d}$1 *,,p"
-    #fdisk -l /dev/${dev}$1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p"
-    # RAF: useful for busybox fdisk version
+function smart_make_ext4() {
+    local nojr=${make_ext4_nojournal}
+    declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
+    let ng=($(blockdev --getsz /dev/${dev})/2048)/1024
+    if [ $extfs -ne 4 ]; then # if [ $ng -ge $max -a "$journal" == "yes" ]; then
+        #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
+        perr "INFO: journaling INIT, will be added WHILE copying."\\n
+        nojr=""
+    else
+        perr "INFO: journaling SKIP, will be added AFTER copying."\\n
+    fi
+    mke4fs "$1" /dev/${dev}2 #$nojr
 }
 
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
-    printf "d_n_p_1_ _+16M_t_f_a_n_p_2_ _ _w_" |\
+    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _ _w_" |\
         tr _ '\n' | fdisk ${wipesign} /dev/${dev}
     waitdev ${dev}2
-    smart_make_ext4 "Porteus"
+    smart_make_ext4 "porteus"
 else # ----------------------------------------------------------------- VFAT --
-    $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
+    $time mkfs.vfat -n "porteus" /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk ${wipesign} /dev/${dev}
     waitdev ${dev}2
-    smart_make_ext4 "Portdata"
+    smart_make_ext4 "usrdata"
 fi >$redir # -------------------------------------------------------------------
 
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
@@ -390,6 +402,7 @@ if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
     { $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync \
         2>&1 || errexit; }| grep -v records
+    blockdev --flushbufs /dev/${dev}1
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
@@ -417,6 +430,7 @@ fi
 set +xe
 # Umount source and eject USB device
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... " >&2
+blockdev --flushbufs /dev/${dev}*
 $time umount ${src} ${dst} /dev/${dev}* 2>&1 | grep "real:"
 for i in ${src} ${dst}; do
     for n in 1 2 3; do mount | grep -q $i && umount $i; done
@@ -433,14 +447,14 @@ for i in 1 2; do
         echo
     done
 done
-while ! eject /dev/${dev};
-    do sleep 1; done
 
 # Say goodbye and exit
-
+while ! eject /dev/${dev}
+    do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
-printf \\n"INFO: Installation completed in $tms seconds"\\n
-printf \\n"DONE: bootable USB key ready to be removed safely"\\n\\n
+if [ $extfs -eq 4 ]; then str="EXT4"; else str="LIVE"; fi
+printf \\n"INFO: Creation $str usbstick completed in $tms seconds."\\n
+printf \\n"DONE: Your bootable USB key ready to be removed safely."\\n\\n
 trap - EXIT
 
 fi #############################################################################
