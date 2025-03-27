@@ -385,12 +385,12 @@ fi
 
 set +xe
 # Umount source and eject USB device
-perr "INFO: waiting for LAST umount synchronisation..." >&2
+perr "INFO: waiting for the umount synchronisation..." >&2
 $time umount ${src} ${dst} 2>&1 | tr '\n' ' '
 umount /dev/${dev}* 2>/dev/null
 
-if true; then
-perr "INFO: syncing while creating the journal, wait..."
+if false; then
+perr "INFO: creating the journal and then checking, wait..."
 $time tune2fs -j /dev/${dev}2
 else echo; fi
 
