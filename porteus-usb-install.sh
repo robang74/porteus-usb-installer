@@ -13,6 +13,8 @@ shs=$(basename "$0")
 store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
+test -n "$DEVEL" || export DEVEL=0;
+
 export workingd_path=$(dirname $(realpath "$0"))
 export download_path=${download_path:-$PWD/$store_dirn}
 export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
@@ -58,21 +60,11 @@ function agree() {
     ans=${ans^^}; test "${ans:0:1}" != "N" || return 1
 }
 
-function wait_umount() {
-    for i in $(seq 1 100); do
-        mount | grep -q "^/dev/$dev" || return 0
-        umount /dev/$dev* 2>/dev/null ||:
-        sleep 0.1
-        printf .
-    done
-    perr "WARNING: wait_umount('$dev') timeout"
-    return 1
-}
-
 function waitdev() {
     local i
     partprobe; for i in $(seq 1 100); do
         if grep -q " $1$" /proc/partitions; then
+            sleep 1
             umount /dev/$dev* 2>/dev/null ||:
             return 0
         fi
@@ -162,7 +154,7 @@ bgi="moonwalker-background.jpg"
 bsi="moonwalker-bootscreen.png"
 opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 cfg="/boot/syslinux/porteus.cfg"
-mbr="porteus-usb-bootable.mbr.gz"
+mbr="porteus-16M-bootable.img.gz"
 
 # RAF, TODO: here is better to use mktemp, instead
 #
@@ -241,8 +233,8 @@ test -n "$kmp" && kmp="kmap=$kmp"
 ################################################################################
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
-fdisk -l /dev/${dev} >/dev/null || errexit $? && {
-    echo; fdisk -l /dev/${dev}; echo
+echo; fdisk -l /dev/${dev} >/dev/null || errexit $? && {
+    fdisk -l /dev/${dev}; echo
     mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
 perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
@@ -255,9 +247,9 @@ fi
 umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}* 2>/dev/null || true
 if true; then
-    for i in /dev/${dev}?; do
-        if [ ! -b $i ]; then rm -f $i; continue; fi
-        dd if=/dev/zero bs=1M count=1 of=$i status=none
+    for i in /dev/${dev}[2-9]; do
+        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+        dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
     done
 fi
 echo
@@ -269,17 +261,17 @@ mkdir -p ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # Write MBR and basic partition table
-zcat ${mbr} >/dev/${dev}
+pigz -dc ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
 waitdev ${dev}1
 
-str=/dev/stdout
-test "$DEVEL" == "0" && str="/dev/null"
 # Prepare partitions and filesystems
+str="/dev/null"
+test $DEVEL -gt 1 && str="/dev/stdout"
 if [ $extfs -eq 4 ]; then
-    printf "d_n____+16M_t_17_a_n_____w_" |\
+    printf "n_____w_" |\
         tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
-    mkfs.vfat -n EFIBOOT /dev/${dev}1
+    #mkfs.vfat -n EFIBOOT /dev/${dev}1
     mke4fs "Porteus" /dev/${dev}2 #$nojournal
 else
     mkfs.vfat -n Porteus /dev/${dev}1
@@ -292,30 +284,15 @@ fi >$str
 # Mount source and destination devices
 echo
 mkdir -p ${dst} ${src};
-mount /dev/${dev}2 ${dst}
+mount -o sync /dev/${dev}1 ${dst}
 mount -o loop ${iso} ${src}
 
-# Copying Porteus system and modules from ISO file
-perr "INFO: copying porteus files..."
-cp -arf ${src}/*.txt ${src}/porteus ${dst}
-if test -n "${bsi}"; then
-    lpd=${dst}/porteus/rootcopy
-    mkdir -p ${lpd}/usr/share/wallpapers/
-    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
-    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    perr "INFO: custom background '${bgi}' copied"
-fi
-
-perr "INFO: starting the EXT4 umount synchronisation..."
-umount -r ${dst} &
-dst=${dst}.vfat
-mkdir -p ${dst}
-mount /dev/${dev}1 ${dst}
+time=""; which time >/dev/null && time="time -p"
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
-    perr "INFO: copying EFI/boot files..."
-    cp -arf ${src}/boot ${src}/EFI ${dst}
+    #cp -arf ${src}/boot ${src}/EFI ${dst}
+    #cp -arf ${src}/boot/syslinux/vmlinuz ${dst}/boot/syslinux/
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
     echo
     str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
@@ -325,31 +302,36 @@ if true; then
         perr "INFO: custom boot screen background '${bsi}' copied"
     fi
 fi
-time=""; which time >/dev/null && time="time -p"
 
-if false; then
-    # Creating persistence loop filesystem or umount
-    if [ $extfs -eq 4 ]; then
-        perr "INFO: waiting for VFAT umount synchronisation..."
-        $time umount ${dst}
-        #umount ${dst} &
-        #dst=${dst}.p2
-        mkdir -p ${dst}
-        mount /dev/${dev}2 ${dst}
-    else
-        dd if=/dev/zero count=1 seek=${blocks} of=${sve}
-        mke4fs "changes" ${sve} ${nojournal}
-        mkdir -p ${dst}/porteus/
-        cp -f ${sve} ${dst}/porteus/
-        rm -f ${sve}
-    fi
+# Creating persistence loop filesystem or umount
+if [ $extfs -eq 4 ]; then
+    perr "INFO: waiting for VFAT umount synchronisation..."
+    $time umount ${dst}
+    mount -o async,noatime /dev/${dev}2 ${dst}
+else
+    dd if=/dev/zero count=1 seek=${blocks} of=${sve}
+    mke4fs "changes" ${sve} ${nojournal}
+    mkdir -p ${dst}/porteus/
+    cp -f ${sve} ${dst}/porteus/
+    rm -f ${sve}
+fi
+
+# Copying Porteus system and modules from ISO file
+perr "INFO: copying porteus files..."
+$time cp -arf ${src}/*.txt ${src}/porteus ${dst}
+if test -n "${bsi}"; then
+    lpd=${dst}/porteus/rootcopy
+    mkdir -p ${lpd}/usr/share/wallpapers/
+    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
+    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
+    perr "INFO: custom background '${bgi}' copied"
 fi
 
 set +xe
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
 $time umount ${src} ${dst}
-fg; wait_umount ${dev}
+umount /dev/${dev}* 2>/dev/null
 echo; fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
 while ! eject /dev/${dev};
