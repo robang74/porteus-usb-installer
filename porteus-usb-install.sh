@@ -311,7 +311,7 @@ mkdir -p ${dst} ${src}
 declare -i tms=$(date +%s%N)
 
 # RAF: zeroing the filesystem signatures prevents automounting (for busybox)
-wipesign="todo"
+wipesign="-w always -W always"
 if ! fdisk --help | grep -q -- "-w"; then
     for i in /dev/${dev}?; do
         if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
@@ -321,47 +321,59 @@ if ! fdisk --help | grep -q -- "-w"; then
 fi
 
 # Write MBR and essential partition table
-printf "INFO: writing the MBR and preparing essential partitions ... "
-zcat ${mbr} | $time dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
+printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n
+zcat ${mbr} | { $time dd bs=1M of=/dev/${dev} oflag=dsync \
+    2>&1 || errexit; } | grep -v records 
+waitdev ${dev}1
 
 function smart_make_ext4() {
-    waitdev ${dev}2
-    declare -i ng max=32 #RAF, TODO: differentiate 2.0 from 3.0, also helps
-    local j=${make_ext4_nojournal}
-    ng=$(fdisk -l /dev/sda | sed -ne "s/.*: \([0-9]*\)[0-9.]* GiB,.*/\\1/p")
-    if [ $ng -ge $max -a "$journal" == "yes" ]; then
-        perr "INFO: usbstick size $ng GiB > $max Gib, making lazy journaled ext4."\\n
-        j=""
+    declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
+    local j
+    ng=$(fdisk -l /dev/${dev} | grep /dev/${dev}1 | tr -d '*' | tr -s ' ' | cut -d ' ' -f4)
+    if [ $ng -le $max -a "$journal" == "yes" ]; then
+        perr "INFO: usbstick size $ng GiB < $max Gib, do journal at the end."\\n
+        j=${make_ext4_nojournal}
     fi
     mke4fs "$1" /dev/${dev}2 $j
 }
 
-waitdev ${dev}1
+function get_part_size() {
+    local d=/dev/${dev}
+    fdisk -o "device,sectors" -l $d | sed -ne "s,${d}$1 *,,p"
+    #fdisk -l /dev/${dev}$1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p"
+    # RAF: useful for busybox fdisk version
+}
+
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
-    printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
-        tr _ '\n' | fdisk ${wipesign:+-w} always /dev/${dev}    
+    printf "d_n_p_1_ _+16M_t_f_a_n_p_2_ _ _w_" |\
+        tr _ '\n' | fdisk ${wipesign} /dev/${dev}
+    waitdev ${dev}2
     smart_make_ext4 "Porteus"
 else # ----------------------------------------------------------------- VFAT --
     $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
-        fdisk ${wipesign:+-w} always /dev/${dev}
+        fdisk ${wipesign} /dev/${dev}
+    waitdev ${dev}2
     smart_make_ext4 "Portdata"
 fi >$redir # -------------------------------------------------------------------
 
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
-    printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
+    #set -x
+    declare -i nb=$(get_part_size 1)
+    printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n
     mount -t tmpfs tmpfs ${dst}
-    declare -i nb
-    nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
-    $time mkfs.vfat -n EFIBOOT ${dst}/vfat.img 2>&1
+    if ! $time mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img 2>&1; then
+        rm -f ${dst}/vfat.img; errexit
+    fi
     mount -o loop ${dst}/vfat.img ${dst}
+    #set +x
 else # ----------------------------------------------------------------- VFAT --
     mount -o async,noatime /dev/${dev}1 ${dst}
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file
-mount -o loop,ro ${iso} ${src}
+mount -o loop,ro ${iso} ${src} || errexit
 printf "INFO: copying Porteus EFI/boot files from ISO file ... "
 $time cp -arf ${src}/boot ${src}/EFI ${dst} 2>&1
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
@@ -376,8 +388,8 @@ fi
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     umount ${dst}
     printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
-    $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
-        grep -v records
+    { $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync \
+        2>&1 || errexit; }| grep -v records
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
