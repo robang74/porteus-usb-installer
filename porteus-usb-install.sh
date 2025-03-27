@@ -13,34 +13,23 @@ shs=$(basename "$0")
 store_dirn="moonwalker"
 usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
-export DEVEL=${DEVEL:-0}
+export workingd_path=$(dirname $(realpath "$0"))
+export download_path=${download_path:-$PWD/$store_dirn}
+export mirror_file=${mirror_file:-porteus-mirror-selected.txt}
+export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org}
+export sha256_file=${sha256_file:-sha256sums.txt}
 
-# RAF: these values depend by external sources and [TODO] should be shared #____
-
-# RAF: internal values #________________________________________________________
-
-## Name of the loop file for having the persistence with a VFAT only system
-persistnce_filename="changes.dat"
-
-## Comment this line below to have the journal within the persistence loop file
+# Comment this line below to have the journal within the persistence loop file
 nojournal="-O ^has_journal"
 
-## This below is the default size in 512-blocks for the persistent loop file
+# This below is the default size in 512-blocks for the persistent loop file
 blocks="256K"
 
-## Some more options / parameters that might be worth to be customised
-make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -F"
-porteus_config_path="/boot/syslinux/porteus.cfg"
-background_filename="moonwalker-background.jpg"
-bootscreen_filename="moonwalker-bootscreen.png"
-usbsk_init_filename="porteus-usb-bootable.mbr.gz"
+################################################################################
 
-# RAF: basic common functions #_________________________________________________
-
-function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
 function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
-function isdevel() { test "${DEVEL:-0}" != "0"; }
-function perr() { { echo; echo -e "$@"; } >&2; }
+function isdevel() { test "$DEVEL" == "${1:-1}"; }
+function perr() { { echo; echo "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
 
 function amiroot() {
@@ -51,48 +40,6 @@ function usage() {
     perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
     eval "$@"
 }
-
-function search() {
-    local d ldirs=". $wdr" f="${1:-}"
-    test -n "$f" || return 1
-    test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
-    for d in $ldirs; do
-        if [ -d "$d" -a -r $d/$f ]; then echo "$d/$f"; return 0; fi
-    done; return 1
-}
-
-# RAF: basic common check & set #_______________________________________________
-
-if isondemand; then
-    wdr=$PWD
-    perr "###############################################"
-    perr "This is an on-demand from remote running script"
-    perr "###############################################"
-fi
-
-workingd_path=$(dirname $(realpath "$0"))
-download_path=${download_path:-$PWD}
-if [ "$(basename $PWD)" != "$store_dirn" ]; then
-    download_path="$download_path/$store_dirn"
-fi
-
-if isdevel; then
-    perr "download path: $download_path\nworkingd path: $workingd_path"
-else
-    # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
-    sudo -k
-fi
-
-# RAF: internal check & set and early functions #_______________________________
-
-if isondemand; then
-    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
-    perr "       For remote installation, use porteus-net-install.sh, instead"
-    errexit
-fi
-
-################################################################################
-if askinghelp; then usage errexit 0; else ######################################
 
 function missing() {
     perr "ERROR: file '${1:-}' is missing or wrong type, abort!"
@@ -112,14 +59,17 @@ function agree() {
 }
 
 function waitdev() {
-    local i
+    while false; do
+        umount /dev/$dev* 2>/dev/null || true
+        partprobe 2>&1 | grep -v "recursive partition" |\
+            grep . || break
+        sleep 0.5
+    done
     partprobe; for i in $(seq 1 100); do
-        if grep -q " $1$" /proc/partitions; then
-            # RAF: zeroing the filesystem signatures prevents automounting
-            #sleep 1
-            #umount /dev/$dev* 2>/dev/null ||:
+        if egrep " $1$" /proc/partitions; then
+            umount /dev/$dev* 2>/dev/null || true
             return 0
-        fi; printf .
+        fi
         sleep 0.1
     done
     perr "ERROR: waitdev('$1') failed, abort!"
@@ -128,7 +78,14 @@ function waitdev() {
 
 function mke4fs() {
     local lbl=$1 dev=$2; shift 2
-    $time mkfs.ext4 -L "$lbl" -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
+    mkfs.ext4 -L $lbl -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
+}
+
+function search() {
+    local f=$1
+    if [ -r "$f" ]; then echo "$f"; return 0; fi
+    if [ -r "$wdr/$f" ]; then echo "$wdr/$f"; return 0; fi
+    return 1
 }
 
 scsi_str=""; scsi_dev="";
@@ -168,7 +125,14 @@ function check_dmsg_for_last_attached_scsi() {
     scsi_str=""; scsi_dev=""         # consumer
 }
 
-################################################################################
+if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then ##############################
+    usage echo
+else ###########################################################################
+
+if isondemand; then
+    perr "ERROR: this script is NOT supposed being executed on-demand, abort!"
+    errexit
+fi
 
 trap "echo; echo; exit 1" INT
 
@@ -187,23 +151,23 @@ fi
 kmp=${3:-}
 extfs=${4:+4}
 
-sve=$persistnce_filename
-bgi=$background_filename
-bsi=$bootscreen_filename
-opt=$make_ext4fs_options
-cfg=$porteus_config_path
-mbr=$usbsk_init_filename
+sve="changes.dat"
+bgi="moonwalker-background.jpg"
+bsi="moonwalker-bootscreen.png"
+opt="-E lazy_itable_init=1,lazy_journal_init=1 -F"
+cfg="/boot/syslinux/porteus.cfg"
+mbr="porteus-usb-bootable.mbr.gz"
 
-# RAF: TODO: here is better to use mktemp, instead
+# RAF, TODO: here is better to use mktemp, instead
 #
 dst="/tmp/usb"
 src="/tmp/iso"
 
 if [ "$usrmn" == "0" ]; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
-    test -b "/dev/$dev" || usage missing "${dev:+/dev/}${dev:-block_device}"
+    test -b "/dev/$dev" || missing "/dev/$dev"
     test -r "$iso" || iso="$wdr/$iso"
-    test -r "$iso" || usage missing "$iso"
+    test -r "$iso" || missing "$iso"
 fi
 
 test -r "$bsi" || bsi="$wdr/$bsi"
@@ -213,15 +177,15 @@ test -r "$bgi" || bgi="$wdr/$bgi"
 test -f "$bgi" || bgi=""
 
 test -r "$mbr" || mbr="$wdr/$mbr"
-test -r "$mbr" || usage missing "$mbr"
+test -r "$mbr" || missing "$mbr"
 
 if ! amiroot; then
-    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})"
+    perr "WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges"
     echo
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
-    isdevel || sudo -k
+    test "$DEVEL" == "0" && sudo -k
     test "$usrmn" != "0" && set -- "--user-menu"
-    exec sudo -E bash $0 "$@" # exec replaces this process, no return from here
+    exec sudo bash $0 "$@" # exec replaces this process, no return from here
     perr "ERROR: exec fails or a bug hits here, abort!"
     errexit -1
 fi
@@ -231,8 +195,7 @@ Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
               with oprtions: ${@:-(none)}
-                    by user: ${SUDO_USER:+$SUDO_USER as }$USER
-                      devel: ${DEVEL:-unset}"
+                    by user: ${SUDO_USER:+$SUDO_USER as }$USER"
 
 if [ "$usrmn" != "0" ]; then
     # RAF: selecting the device by insertion is the most user-friendly way to go
@@ -267,23 +230,14 @@ if [ "$usrmn" != "0" ]; then
 or press ENTER for leave the current settings: " kmp
 fi
 
-# Deciding about keyboard layout
 test -n "$kmp" && kmp="kmap=$kmp"
-
-# Deciding about time keeping and its format
-# time=""; isdevel && time=$(which time)
-time=$(which time)
-time=${time:+$time -freal:"%es\n"}
-
-# Deciding about output redirection
-redir="/dev/null"; isdevel && redir="/dev/stdout"
 
 ################################################################################
 
 perr "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
-echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
-{     fdisk -l /dev/${dev}; echo
-      mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
+fdisk -l /dev/${dev} >/dev/null || errexit $? && {
+    echo; fdisk -l /dev/${dev}; echo
+    mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
 perr "WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"
 besure || errexit
@@ -293,57 +247,68 @@ fi
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
-umount /dev/${dev}* 2>/dev/null || true 
+umount /dev/${dev}* 2>/dev/null || true
+if true; then
+    for i in /dev/${dev}?; do
+        dd if=/dev/zero bs=1M count=1 of=$i status=none
+    done
+fi
 echo
 if mount | grep /dev/${dev}; then
     perr "ERROR: device /dev/${dev} is busy, abort!"
     errexit
 fi
 mkdir -p ${dst} ${src}
-
-# Keep the time from here
 declare -i tms=$(date +%s%N)
 
-# RAF: zeroing the filesystem signatures prevents automounting
-for i in /dev/${dev}?; do
-    if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-    dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
-done
-
 # Write MBR and basic partition table
-perr "writing the MBR and basic partition table..."
-$time zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
+zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 
-# exit 0
 # Prepare partitions and filesystems
 if [ $extfs -eq 4 ]; then
-    printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
-        tr _ '\n' | fdisk /dev/${dev}    
+    printf "d_n____+16M_t_17_a_n_____w_" |\
+        tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
+    mkfs.vfat -n EFIBOOT /dev/${dev}1
     mke4fs "Porteus" /dev/${dev}2 $nojournal
 else
-    printf "n_p_2_ _ _w_" | tr _ '\n' |\
-        fdisk /dev/${dev}
+    mkfs.vfat -n Porteus /dev/${dev}1
+    printf "n_p_2___w_" | tr _ '\n' |\
+        fdisk /dev/${dev} >/dev/null
     waitdev ${dev}2
-    $time mkfs.vfat -n Porteus /dev/${dev}1
-    mke4fs "Portdata" /dev/${dev}2 $nojournal
-fi >$redir
+    mke4fs "Portdata" /dev/${dev}2
+fi >/dev/null
 
-# Create a loop file in tmpfs [TODO: check /tmp is tmpfs]
-perr "INFO: creating a loop file in tmpfs for the VFAT partition..."
-mount -t tmpfs tmpfs ${dst}
-nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
-dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
-$time mkfs.vfat -n EFIBOOT ${dst}/vfat.img
-mount -o loop ${dst}/vfat.img ${dst}
+# Mount source and destination devices
+echo
+mkdir -p ${dst} ${src};
+mount /dev/${dev}2 ${dst}
+mount -o loop ${iso} ${src}
+
+# Copying Porteus system and modules from ISO file
+perr "INFO: copying porteus files..."
+cp -arf ${src}/*.txt ${src}/porteus ${dst}
+if test -n "${bsi}"; then
+    lpd=${dst}/porteus/rootcopy
+    mkdir -p ${lpd}/usr/share/wallpapers/
+    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
+    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
+    perr "INFO: custom background '${bgi}' copied"
+fi
+
+perr "INFO: starting the EXT4 umount synchronisation..."
+umount -r ${dst} &
+dst=${dst}.vfat
+mkdir -p ${dst}
+mount /dev/${dev}1 ${dst}
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
-    perr "INFO: copying Porteus EFI/boot files from ISO file..."
-    mount -o loop,ro ${iso} ${src}
-    $time cp -arf ${src}/boot ${src}/EFI ${dst}
+    perr "INFO: copying EFI/boot files..."
+    cp -arf ${src}/boot ${src}/EFI ${dst}
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
+    echo
     str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
     sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
     grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
@@ -351,50 +316,32 @@ if true; then
         perr "INFO: custom boot screen background '${bsi}' copied"
     fi
 fi
+time=""; which time >/dev/null && time="time -p"
 
-# Creating persistence loop filesystem or umount
-if [ $extfs -eq 4 ]; then
-    perr "INFO: waiting for VFAT image synchronisation..."
-    umount ${dst};
-    $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
-        grep -v records
-    rm -f ${dst}/vfat.img; umount ${dst}
-    mount -o async,noatime /dev/${dev}2 ${dst}
-else
-    dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    mke4fs "changes" ${sve} ${nojournal} >$redir
-    d=${dst}/porteus; mkdir -p $d
-    cp -f ${sve} $d; rm -f ${sve}
-    # RAF: using cp instead of mv because it handles the sparse
+if false; then
+    # Creating persistence loop filesystem or umount
+    if [ $extfs -eq 4 ]; then
+        perr "INFO: waiting for VFAT umount synchronisation..."
+        $time umount ${dst}
+        #umount ${dst} &
+        #dst=${dst}.p2
+        mkdir -p ${dst}
+        mount /dev/${dev}2 ${dst}
+    else
+        dd if=/dev/zero count=1 seek=${blocks} of=${sve}
+        mke4fs "changes" ${sve} ${nojournal}
+        mkdir -p ${dst}/porteus/
+        cp -f ${sve} ${dst}/porteus/
+        rm -f ${sve}
+    fi
 fi
-
-# Copying Porteus system and modules from ISO file
-echo "INFO: copying Porteus core system files..." >&2
-$time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1 | tr '\n' ' '
-if test -n "${bsi}"; then
-    lpd=${dst}/porteus/rootcopy
-    mkdir -p ${lpd}/usr/share/wallpapers/
-    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
-    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    echo
-    perr "INFO: custom background '${bgi}' copied"
-fi
-
-#perr "INFO: waiting for LAST umount synchronisation..."
-#$time sync -f ${dst}/*.txt
 
 set +xe
 # Umount source and eject USB device
-perr "INFO: waiting for the umount synchronisation..." >&2
-$time umount ${src} ${dst} 2>&1 | tr '\n' ' '
+perr "INFO: waiting for LAST umount synchronisation..."
+$time umount ${src} ${dst}; fg
 umount /dev/${dev}* 2>/dev/null
-
-if false; then
-perr "INFO: creating the journal and then checking, wait..."
-$time tune2fs -j /dev/${dev}2
-else echo; fi
-
-fsck -yf /dev/${dev}1
+echo; fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
 while ! eject /dev/${dev};
     do sleep 1; done
