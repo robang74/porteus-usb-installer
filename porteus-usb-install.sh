@@ -22,18 +22,20 @@ export DEVEL=${DEVEL:-0}
 ## Name of the loop file for having the persistence with a VFAT only system
 persistnce_filename="changes.dat"
 
-## Comment this line below to have the journal within the persistence loop file
-nojournal="-O ^has_journal"
+## Comment this line below to avoid creating the journal in the 2nd partition
+journal="yes"
 
 ## This below is the default size in 512-blocks for the persistent loop file
 blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
+make_ext4_nojournal="-O ^has_journal"
 make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -F"
 porteus_config_path="/boot/syslinux/porteus.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
 usbsk_init_filename="porteus-usb-bootable.mbr.gz"
+
 
 # RAF: basic common functions #_________________________________________________
 
@@ -226,7 +228,7 @@ Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
               with oprtions: ${@:-(none)}
-                    by user: ${SUDO_USER:+$SUDO_USER as }${USER/root/root (\!\!)} 
+                    by user: ${SUDO_USER:+$SUDO_USER as }${USER} 
                       devel: ${DEVEL:-unset}"
 
 if [ "$usrmn" != "0" ]; then
@@ -325,13 +327,13 @@ if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
         tr _ '\n' | fdisk /dev/${dev}    
     waitdev ${dev}2
-    mke4fs "Porteus" /dev/${dev}2 $nojournal
+    mke4fs "Porteus" /dev/${dev}2 ${make_ext4_nojournal}
 else # ----------------------------------------------------------------- VFAT --
     $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk /dev/${dev}
     waitdev ${dev}2
-    mke4fs "Portdata" /dev/${dev}2 $nojournal
+    mke4fs "Portdata" /dev/${dev}2 ${make_ext4_nojournal}
 fi >$redir # -------------------------------------------------------------------
 
 if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
@@ -367,7 +369,7 @@ if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    mke4fs "changes" ${sve} ${nojournal} >$redir
+    mke4fs "changes" ${sve} ${make_ext4_nojournal} >$redir
     d=${dst}/porteus; mkdir -p $d
     cp -f ${sve} $d; rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
@@ -389,14 +391,14 @@ fi
 
 set +xe
 # Umount source and eject USB device
-printf \\n"INFO: long waiting for the umount synchronisation ... " >&2
+printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... " >&2
 $time umount ${src} ${dst} /dev/${dev}* 2>&1 | grep "real:"
 for i in ${src} ${dst}; do    
     for n in 1 2 3; do mount | grep -q $i && umount $i; done
 done 2>/dev/null
 { mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
 
-if false; then
+if [ "$journal" == "yes" ]; then
 printf \\n"INFO: creating the journal and then checking, wait..."\\n
 $time tune2fs -j /dev/${dev}2 2>&1
 fi
