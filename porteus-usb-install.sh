@@ -212,8 +212,7 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || usage missing "$mbr"
 
 if ! amiroot; then
-    perr \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})."\\n
-    echo
+    printf \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})."\\n
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     isdevel || sudo -k
     test "$usrmn" != "0" && set -- "--user-menu"
@@ -227,7 +226,7 @@ Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
               with oprtions: ${@:-(none)}
-                    by user: ${SUDO_USER:+$SUDO_USER as }$USER
+                    by user: ${SUDO_USER:+$SUDO_USER as }${USER/root/root (\!\!)} 
                       devel: ${DEVEL:-unset}"
 
 if [ "$usrmn" != "0" ]; then
@@ -291,8 +290,10 @@ echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}; echo
       mount | cut -d\( -f1 | grep "/dev/${dev}" | sed -e "s,^.*$,& <-- MOUNTED !!,"
 } | sed -e "s,^.*$,\t&,"
-perr \\n"WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!"\\n
-besure || errexit
+besure "WARNING
+WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!
+WARNING
+WARNING: Are you sure to proceed" || errexit
 if [ "$usrmn" == "0" ]; then
     check_dmsg_for_last_attached_scsi "$dev"
 fi
@@ -316,13 +317,10 @@ for i in /dev/${dev}?; do
     dd if=/dev/zero bs=32k count=1 of=$i oflag=dsync status=none
 done
 
-# Write MBR and basic partition table
-printf "INFO: writing the MBR and basic partition table ... "
-$time zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
+# Write MBR and essential partition table
+printf "INFO: writing the MBR and preparing essential partitions ... "
+zcat ${mbr} | $time dd bs=1M of=/dev/${dev} oflag=dsync status=none 2>&1
 waitdev ${dev}1
-
-# exit 0
-# Prepare partitions and filesystems
 if [ $extfs -eq 4 ]; then
     printf "d_n_p_1_ _+16M_t_17_a_n_p_2_ _ _w_" |\
         tr _ '\n' | fdisk /dev/${dev}    
@@ -332,7 +330,7 @@ else
     printf "n_p_2_ _ _w_" | tr _ '\n' |\
         fdisk /dev/${dev}
     waitdev ${dev}2
-    $time mkfs.vfat -n Porteus /dev/${dev}1
+    $time mkfs.vfat -n Porteus /dev/${dev}1 2>&1
     mke4fs "Portdata" /dev/${dev}2 $nojournal
 fi >$redir
 
@@ -341,7 +339,7 @@ printf "INFO: creating a loop file in tmpfs for the VFAT partition, wait..."\\n
 mount -t tmpfs tmpfs ${dst}
 nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
 dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
-$time mkfs.vfat -n EFIBOOT ${dst}/vfat.img
+$time mkfs.vfat -n EFIBOOT ${dst}/vfat.img 2>&1
 mount -o loop ${dst}/vfat.img ${dst}
 
 # Copying Porteus EFI/boot files from ISO file
@@ -397,7 +395,7 @@ done 2>/dev/null
 
 if false; then
 printf \\n"INFO: creating the journal and then checking, wait..."\\n
-$time tune2fs -j /dev/${dev}2
+$time tune2fs -j /dev/${dev}2 2>&1
 fi
 for i in 1 2; do
     for n in 1 2 3; do
