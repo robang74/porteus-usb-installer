@@ -393,19 +393,19 @@ set +xe
 # Umount source and eject USB device
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... " >&2
 $time umount ${src} ${dst} /dev/${dev}* 2>&1 | grep "real:"
-for i in ${src} ${dst}; do    
+for i in ${src} ${dst}; do
     for n in 1 2 3; do mount | grep -q $i && umount $i; done
 done 2>/dev/null
 { mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
 
 if [ "$journal" == "yes" ]; then
-printf \\n"INFO: creating the journal and then checking, wait..."\\n
-$time tune2fs -j /dev/${dev}2 2>&1
-fi
+    printf \\n"INFO: creating the journal and then checking, wait..."\\n
+    $time tune2fs -j /dev/${dev}2 2>&1
+else echo; fi
 for i in 1 2; do
     for n in 1 2 3; do
-        echo
         fsck -yf /dev/${dev}$i && break
+        echo
     done
 done
 while ! eject /dev/${dev};
