@@ -311,7 +311,8 @@ for i in /dev/${dev}?; do
 done
 
 # Write MBR and basic partition table
-zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
+perr "writing the MBR and basic partition table..."
+$time zcat ${mbr} | dd bs=1M of=/dev/${dev} oflag=dsync status=none
 waitdev ${dev}1
 
 # exit 0
@@ -330,6 +331,7 @@ else
 fi >$redir
 
 # Create a loop file in tmpfs [TODO: check /tmp is tmpfs]
+perr "INFO: creating a loop file in tmpfs for the VFAT partition..."
 mount -t tmpfs tmpfs ${dst}
 nb=$(fdisk -l /dev/${dev}1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p")
 dd if=/dev/zero count=1 seek=$[nb-1] of=${dst}/vfat.img status=none
@@ -338,8 +340,8 @@ mount -o loop ${dst}/vfat.img ${dst}
 
 # Copying Porteus EFI/boot files from ISO file
 if true; then
-    mount -o loop ${iso} ${src}
     perr "INFO: copying Porteus EFI/boot files from ISO file..."
+    mount -o loop,ro ${iso} ${src}
     $time cp -arf ${src}/boot ${src}/EFI ${dst}
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
     str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
@@ -353,9 +355,10 @@ fi
 # Creating persistence loop filesystem or umount
 if [ $extfs -eq 4 ]; then
     perr "INFO: waiting for VFAT image synchronisation..."
-    umount ${dst}; rm -f ${dst}/vfat.img; umount ${dst}
+    umount ${dst};
     $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync 2>&1 |\
         grep -v records
+    rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
