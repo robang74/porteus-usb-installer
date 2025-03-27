@@ -58,16 +58,22 @@ function agree() {
     ans=${ans^^}; test "${ans:0:1}" != "N" || return 1
 }
 
-function waitdev() {
-    while false; do
-        umount /dev/$dev* 2>/dev/null || true
-        partprobe 2>&1 | grep -v "recursive partition" |\
-            grep . || break
-        sleep 0.5
+function wait_umount() {
+    for i in $(seq 1 100); do
+        mount | grep -q "^/dev/$dev" || return 0
+        umount /dev/$dev* 2>/dev/null ||:
+        sleep 0.1
+        printf .
     done
+    perr "WARNING: wait_umount('$dev') timeout"
+    return 1
+}
+
+function waitdev() {
+    local i
     partprobe; for i in $(seq 1 100); do
-        if egrep " $1$" /proc/partitions; then
-            umount /dev/$dev* 2>/dev/null || true
+        if grep -q " $1$" /proc/partitions; then
+            umount /dev/$dev* 2>/dev/null ||:
             return 0
         fi
         sleep 0.1
@@ -250,6 +256,7 @@ umount ${src} ${dst} 2>/dev/null || true
 umount /dev/${dev}* 2>/dev/null || true
 if true; then
     for i in /dev/${dev}?; do
+        if [ ! -b $i ]; then rm -f $i; continue; fi
         dd if=/dev/zero bs=1M count=1 of=$i status=none
     done
 fi
@@ -265,20 +272,22 @@ declare -i tms=$(date +%s%N)
 zcat ${mbr} >/dev/${dev}
 waitdev ${dev}1
 
+str=/dev/stdout
+test "$DEVEL" == "0" && str="/dev/null"
 # Prepare partitions and filesystems
 if [ $extfs -eq 4 ]; then
     printf "d_n____+16M_t_17_a_n_____w_" |\
         tr _ '\n' | fdisk /dev/${dev}
     waitdev ${dev}2
     mkfs.vfat -n EFIBOOT /dev/${dev}1
-    mke4fs "Porteus" /dev/${dev}2 $nojournal
+    mke4fs "Porteus" /dev/${dev}2 #$nojournal
 else
     mkfs.vfat -n Porteus /dev/${dev}1
     printf "n_p_2___w_" | tr _ '\n' |\
-        fdisk /dev/${dev} >/dev/null
+        fdisk /dev/${dev}
     waitdev ${dev}2
     mke4fs "Portdata" /dev/${dev}2
-fi >/dev/null
+fi >$str
 
 # Mount source and destination devices
 echo
@@ -339,8 +348,8 @@ fi
 set +xe
 # Umount source and eject USB device
 perr "INFO: waiting for LAST umount synchronisation..."
-$time umount ${src} ${dst}; fg
-umount /dev/${dev}* 2>/dev/null
+$time umount ${src} ${dst}
+fg; wait_umount ${dev}
 echo; fsck -yf /dev/${dev}1
 echo; fsck -yf /dev/${dev}2
 while ! eject /dev/${dev};
