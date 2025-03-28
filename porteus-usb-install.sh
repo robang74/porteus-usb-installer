@@ -30,12 +30,11 @@ blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
 make_ext4_nojournal="-O ^has_journal"
-make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -F"
+make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -O fast_commit"
 porteus_config_path="/boot/syslinux/porteus.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
 usbsk_init_filename="porteus-usb-bootable.mbr.gz"
-
 
 # RAF: basic common functions #_________________________________________________
 
@@ -103,7 +102,8 @@ function missing() {
 
 function besure() {
     local ans
-    echo; read -p "${1:-Are you sure to continue}? [N/y] " ans
+    echo
+    read -p "${1:-Are you sure to continue}? [N/y] " ans
     ans=${ans^^}; test "${ans:0:1}" == "Y" || return 1
 }
 
@@ -115,7 +115,8 @@ function agree() {
 
 function waitdev() {
     local i
-    partprobe; for i in $(seq 1 100); do
+    partprobe
+    for i in $(seq 1 100); do
         if grep -q " $1$" /proc/partitions; then
             return 0
         fi; printf .
@@ -125,9 +126,9 @@ function waitdev() {
     errexit
 }
 
-function mke4fs() {
+function make4fs() {
     local lbl=$1 dev=$2; shift 2
-    $time mkfs.ext4 -L "$lbl" -E lazy_itable_init=1,lazy_journal_init=1 -F $dev "$@"
+    $time mkfs.ext4 -L "$lbl" ${make_ext4fs_options} -F $dev "$@"
 }
 
 scsi_str=""; scsi_dev="";
@@ -190,7 +191,6 @@ extfs=${4:+4}
 sve=$persistnce_filename
 bgi=$background_filename
 bsi=$bootscreen_filename
-opt=$make_ext4fs_options
 cfg=$porteus_config_path
 mbr=$usbsk_init_filename
 
@@ -278,6 +278,45 @@ redir="/dev/null"; isdevel && redir="/dev/stdout"
 
 trap 'for i in $src $dst $dst; do umount $i 2>/dev/null||:; done &' EXIT
 
+# ---------------------------------------------------------------------- FUNC --
+
+function spcut() { tr -s ' ' | cut -d ' ' -f$1; }
+
+function is_ext4_install() { test $extfs -eq 4; }
+
+function get_diskpart_size() { 
+    declare -i nb;
+    if ! cat /sys/block/${dev}$1/size 2>/dev/null; then
+        nb=$(sed -ne "s,.* \([0-9]\+\) *${dev}$1$,\\1,p" /proc/partitions)
+        echo $[nb*2] # RAF: in /proc/partition #blocks are 1KB not 512-bytes
+    fi
+}
+
+function devflush() {
+    blockdev --flushbufs /dev/${dev}$1 || hdparm -f /dev/${dev} || sleep 1
+}
+
+function ddsync() {
+    local alt=$1; shift; { dd "$@" oflag=dsync 2>&1 || $1; }| grep -v "records"
+}
+
+function smart_make_ext4() {
+    local nojr=${make_ext4_nojournal}
+    # declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
+    # let ng=($(get_diskpart_size)/2048)/1024
+    # if [ $ng -ge $max -a "$journal" == "yes" ]; then
+    if false && is_ext4_install; then
+        #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
+        printf "INFO: journaling INIT, will be added WHILE copying."\\n >&2
+        nojr=""
+    else
+        printf "INFO: journaling SKIP, will be added AFTER copying."\\n >&2
+    fi
+    waitdev ${dev}2
+    make4fs "$1" /dev/${dev}2 $nojr
+}
+
+# ------------------------------------------------------------------------------
 # RAF: TODO: here is better to use mktemp, instead
 #
 dst="/tmp/usb"
@@ -286,9 +325,12 @@ src="/tmp/iso"
 echo
 echo "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
-{     fdisk -l /dev/${dev}; echo
+{     fdisk -l /dev/${dev}
+      echo
+      smartctl -H -d scsi /dev/${dev} 2>/dev/null | grep -i health ||:
+      echo
       mount | cut -d\( -f1 | grep "/dev/${dev}" | sort -n \
-  | sed -e "s,^.*$,& <-- MOUNTED !!,"
+  | sed -e "s,^.*$,& <-- MOUNTED !!," | grep . ||:
 } | sed -e "s,^.*$,\t&,"
 besure "WARNING
 WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!
@@ -308,67 +350,46 @@ if mount | grep /dev/${dev}; then
 fi
 mkdir -p ${dst} ${src}
 
-# Keep the time from here
+# Keep the time from here #_____________________________________________________
+
 declare -i tms=$(date +%s%N)
 
-printf "INFO: invalidating all previous filesystem signatures, wait..."\\n
-# RAF: zeroing the filesystem signatures prevents automounting (for busybox)
-#if which wipefs >/dev/null; then
-    $time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1 | grep -v "offset 0x"
-#else
+# RAF: zeroing the filesystem signatures prevents automounting #________________
+
+printf "INFO: invalidating all previous filesystem signatures"
+if which wipefs >/dev/null; then
+    printf " ... "
+    $time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1|grep -v "offset 0x"
+else
+    printf ", wait..."\\n\\n
     for i in /dev/${dev}?; do
         if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-        dd if=/dev/zero bs=16k count=1 of=$i oflag=dsync status=none
-    done; #echo "done."
-#fi
+        ddsync : if=/dev/zero bs=4M count=1 of=$i
+        #dd if=/dev/zero bs=4M count=1 of=$i oflag=dsync 2>&1|grep -v "records"
+    done
+    echo
+fi
 
-# Write MBR and essential partition table
-printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n
-zcat ${mbr} | { $time dd bs=1M of=/dev/${dev} oflag=dsync \
-    2>&1 || errexit; } | grep -v records 
-waitdev ${dev}1
+# Write MBR and essential partition table #_____________________________________
 
-function get_part_size() {
-    #local d=/dev/${dev}; 
-    #fdisk -o "device,sectors" -l $d | sed -ne "s,${d}$1 *,,p"
-
-    #fdisk -l /dev/${dev}$1 | sed -ne "s/.*, \([0-9]*\) sectors/\\1/p"
-    #ng=$(fdisk -l /dev/${dev} | grep /dev/${dev}1 | tr -d '*' | tr -s ' ' | cut -d ' ' -f4)
-    # RAF: useful for busybox fdisk version
-
-    blockdev --getsz /dev/${dev}$1
-}
-
-function smart_make_ext4() {
-    local nojr=${make_ext4_nojournal}
-    declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
-    let ng=($(blockdev --getsz /dev/${dev})/2048)/1024
-    if [ $extfs -ne 4 ]; then # if [ $ng -ge $max -a "$journal" == "yes" ]; then
-        #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        perr "INFO: journaling INIT, will be added WHILE copying."\\n
-        nojr=""
-    else
-        perr "INFO: journaling SKIP, will be added AFTER copying."\\n
-    fi
-    mke4fs "$1" /dev/${dev}2 #$nojr
-}
-
-if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
-    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _ _w_" |\
-        tr _ '\n' | fdisk ${wipesign} /dev/${dev}
-    waitdev ${dev}2
-    smart_make_ext4 "porteus"
+printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
+#zcat ${mbr} | { dd bs=1M of=/dev/${dev} oflag=dsync 2>&1 || errexit; } | grep -v "records"
+zcat ${mbr} | ddsync errexit bs=1M of=/dev/${dev}
+devflush; waitdev ${dev}1
+echo
+if is_ext4_install; then # --------------------------------------------- EXT4 --
+    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _ _w_" | tr _ '\n' | fdisk /dev/${dev}
+    smart_make_ext4 "porteus" -DS
+    resize2fs /dev/${dev}2 1G
 else # ----------------------------------------------------------------- VFAT --
-    $time mkfs.vfat -n "porteus" /dev/${dev}1 2>&1
-    printf "n_p_2_ _ _w_" | tr _ '\n' |\
-        fdisk ${wipesign} /dev/${dev}
-    waitdev ${dev}2
+    $time mkfs.vfat -a -F32 -n "porteus" /dev/${dev}1 2>&1
+    printf "n_p_2_ _ _w_" | tr _ '\n' | fdisk /dev/${dev}
     smart_make_ext4 "usrdata"
-fi >$redir # -------------------------------------------------------------------
+fi 2>&1 >$redir # --------------------------------------------------------------
 
-if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
+if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set -x
-    declare -i nb=$(get_part_size 1)
+    declare -i nb=$(get_diskpart_size 1)
     printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n
     mount -t tmpfs tmpfs ${dst}
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
@@ -381,36 +402,40 @@ else # ----------------------------------------------------------------- VFAT --
     mount -o async,noatime /dev/${dev}1 ${dst}
 fi # ---------------------------------------------------------------------------
 
-# Copying Porteus EFI/boot files from ISO file
+# Copying Porteus EFI/boot files from ISO file #________________________________
+
 mount -o loop,ro ${iso} ${src} || errexit
 printf "INFO: copying Porteus EFI/boot files from ISO file ... "
 $time cp -arf ${src}/boot ${src}/EFI ${dst} 2>&1
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-str=" ${kmp}"; test $extfs -eq 4 || str="/${sve} ${kmp}"
+str=" ${kmp}"; is_ext4_install || str="/${sve} ${kmp}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
 grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     printf \\n"INFO: custom boot screen background '${bsi}' copied"\\n
 fi
 
-# Creating persistence loop filesystem or umount
-if [ $extfs -eq 4 ]; then # -------------------------------------------- EXT4 --
+# Creating persistence loop filesystem or umount #______________________________
+
+if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
     printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
-    { $time dd if=${dst}/vfat.img bs=1M of=/dev/${dev}1 oflag=dsync \
-        2>&1 || errexit; }| grep -v records
-    blockdev --flushbufs /dev/${dev}1
+    ddsync errexit if=${dst}/vfat.img bs=1M of=/dev/${dev}1
+    devflush 1
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
+    echo
 else # ----------------------------------------------------------------- VFAT --
+    printf \\n"INFO: writing the EXT4 persistence file to changes, wait..."\\n
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    mke4fs "changes" ${sve} ${make_ext4_nojournal} >$redir
+    make4fs "changes" ${sve} ${make_ext4_nojournal} >$redir
     d=${dst}/porteus; mkdir -p $d
     cp -f ${sve} $d; rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
 fi # ---------------------------------------------------------------------------
 
-# Copying Porteus system and modules from ISO file
+# Copying Porteus system and modules from ISO file#_____________________________
+
 printf "INFO: copying Porteus core system files ... "
 $time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1
 if [ -n "${bsi}" ]; then
@@ -424,39 +449,63 @@ fi
 #printf "\nINFO: waiting for LAST umount synchronisation...\n"
 #$time sync -f ${dst}/*.txt
 
+# Unmount source and eject USB device #_________________________________________
 set +xe
-# Umount source and eject USB device
-printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... " >&2
-blockdev --flushbufs /dev/${dev}*
-$time umount ${src} ${dst} /dev/${dev}* 2>&1 | grep "real:"
-for i in ${src} ${dst}; do
-    for n in 1 2 3; do mount | grep -q $i && umount $i; done
-done 2>/dev/null
+
+function flush_umount_device() {
+    local i; 
+    #set -x
+    if [ -e /proc/sys/kernel/sysrq ]; then
+        while grep -Eq "${dev}[1-2]*$" /proc/partitions; do sleep 360
+            echo s >/proc/sys/kernel/sysrq 2>/dev/null; done &
+    fi
+    {    
+        for i in 1 2 ""; do devflush $i; umount /dev/${dev}$i; done
+        for i in ${dst} ${src} /dev/${dev}?; do
+            while mount | grep -wq $i; do
+                umount $i && break
+                sleep 1
+            done
+        done 
+    } 2>&1 | grep -v ": not mounted."
+    #set +x
+}
+
+printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "\\n
+devflush 1; sync -f ${dst}/*.txt
+flush_umount_device
+#$time flush_umount_device 2>&1 | grep "real:"
 { mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
 
 if [ "$journal" == "yes" ]; then #$ng -lt 16 -a
     printf \\n"INFO: creating the journal and then checking, wait..."\\n
-    $time tune2fs -j /dev/${dev}2 2>&1
+    $time tune2fs -O fast_commit -j /dev/${dev}2 2>&1
 else echo; fi
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
         echo
     done
+    echo
 done
+flush_umount_device
 
-# Say goodbye and exit
+# Say goodbye and exit #________________________________________________________
+
 udsc1=$(fdisk -l /dev/${dev} | head -n2 | cut -d' ' -f2- | cut -d, -f1 | sed -e 's,\(model:\), \1,')
 udsc2=$(for i in 1 2; do eval $(blkid -o export /dev/${dev}$i); printf "$DEVNAME $LABEL $TYPE\n"; done)
 while ! eject /dev/${dev}
     do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
-if [ $extfs -eq 4 ]; then str="EXT4"; else str="LIVE"; fi
-printf \\n"INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
-printf    "      $udsc1"  | tr '\n' '\t'; echo
-printf    "      $udsc2"  | tr '\n' '\t'; echo
-printf \\n"DONE: Your bootable USB key ready to be removed safely."\\n\\n
+if is_ext4_install; then str="EXT4"; else str="LIVE"; fi
+printf "INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
+printf "      $udsc1"  | tr '\n' '\t'; echo
+printf "      $udsc2"  | tr '\n' '\t'; echo; echo
+printf "DONE: Your bootable USB key ready to be removed safely."\\n\\n
+for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
+    tr -d '\0' | grep -q sleep360 && kill $i; done 2>/dev/null
 trap - EXIT
+wait
 
 fi #############################################################################
 
