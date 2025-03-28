@@ -378,11 +378,11 @@ zcat ${mbr} | ddsync errexit bs=1M of=/dev/${dev}
 devflush; waitdev ${dev}1
 echo
 if is_ext4_install; then # --------------------------------------------- EXT4 --
-    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _ _w_" |\
+    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w_" |\
         tr _ '\n' | fdisk /dev/${dev} >$redir
     smart_make_ext4 "porteus" -DS
-    printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
-    $time resize2fs /dev/${dev}2 1G 1>&2 ||:  
+    #printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
+    #$time resize2fs /dev/${dev}2 1G 1>&2 ||:  
 else # ----------------------------------------------------------------- VFAT --
     $time mkfs.vfat -a -F32 -n "porteus" /dev/${dev}1 2>&1
     printf "n_p_2_ _ _w_" | tr _ '\n' | fdisk /dev/${dev} >$redir
@@ -483,8 +483,10 @@ if [ "$journal" == "yes" ]; then #$ng -lt 16 -a
     #printf \\n"INFO: creating the journal and then checking, wait..."\\n
     #$time tune2fs -O fast_commit  /dev/${dev}2 2>&1
     printf \\n"INFO: creating the journal and then checking, wait..."\\n
-    $time tune2fs -O fast_commit -J size=16384 /dev/${dev}2 
+    $time tune2fs -O fast_commit -J size=16384 /dev/${dev}2
 else echo; fi
+#printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
+#$time resize2fs /dev/${dev}2
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
