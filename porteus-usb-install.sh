@@ -199,7 +199,8 @@ if [ "x$3" == "x--ext4-install" ]; then
 fi
 kmp=${3:-}
 extfs=${4:+4}
-kargs=$(cat $(search "$kernelargs_filename") 2>/dev/null ||:)
+str=$(search "$kernelargs_filename" ||:)
+kargs=${str:+$(cat "$str" 2>/dev/null ||:)}
 
 sve=$persistnce_filename
 bgi=$background_filename
@@ -344,6 +345,7 @@ function smart_make_ext4() {
 dst="/tmp/usb"
 src="/tmp/iso"
 
+printf \\n"INFO: wake-up the chosen device and rescan the partitions, wait..."\\n
 eject -t /dev/${dev}  # RAF: give the device a wake-up, just in case
 sleep 0.25
 partprobe
@@ -405,7 +407,8 @@ fi
 # Write MBR and essential partition table #_____________________________________
 
 printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
-zcat ${mbr} | ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
+{ zcat "${mbr}" || errexit; } |\
+    ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
 devflush ; waitdev ${dev}1
 echo
 if is_ext4_install; then # --------------------------------------------- EXT4 --
