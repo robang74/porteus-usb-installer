@@ -30,7 +30,7 @@ blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
 make_ext4_nojournal="-O ^has_journal"
-make_ext4fs_options="-E lazy_itable_init=1,lazy_journal_init=1 -O fast_commit"
+make_ext4fs_options="-E lazy_itable_init=0,lazy_journal_init=0 -D -O fast_commit"
 porteus_config_path="/boot/syslinux/porteus.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
