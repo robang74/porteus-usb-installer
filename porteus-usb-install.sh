@@ -30,7 +30,9 @@ blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
 make_ext4_nojournal="-O ^has_journal"
-make_ext4fs_options="-E lazy_itable_init=0,lazy_journal_init=0 -D -O fast_commit"
+make_ext4fs_options="-DO fast_commit"
+make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
+make_ext4fs_notlazy="-E lazy_itable_init=0,lazy_journal_init=0"
 porteus_config_path="/boot/syslinux/porteus.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
@@ -118,7 +120,8 @@ function waitdev() {
     partprobe
     for i in $(seq 1 100); do
         if grep -q " $1$" /proc/partitions; then
-            return 0
+            test -b /dev/$1
+            return $?
         fi; printf .
         sleep 0.1
     done
@@ -301,19 +304,19 @@ function ddsync() {
 }
 
 function smart_make_ext4() {
-    local nojr=${make_ext4_nojournal}
+    local opts="${make_ext4_nojournal} ${make_ext4fs_lazyone}"
     # declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
     # let ng=($(get_diskpart_size)/2048)/1024
     # if [ $ng -ge $max -a "$journal" == "yes" ]; then
-    if false && is_ext4_install; then
+    if is_ext4_install; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        printf "INFO: journaling INIT, will be added WHILE copying."\\n >&2
-        nojr=""
+        printf "INFO: journaling INIT, will be added WHILE copying, wait..."\n\\n
+        opts="-J size=16 ${make_ext4fs_notlazy}"
     else
-        printf "INFO: journaling SKIP, will be added AFTER copying."\\n >&2
+        printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
     fi
     waitdev ${dev}2
-    make4fs "$1" /dev/${dev}2 $nojr
+    make4fs "$1" /dev/${dev}2 $opts
 }
 
 # ------------------------------------------------------------------------------
@@ -373,19 +376,18 @@ fi
 # Write MBR and essential partition table #_____________________________________
 
 printf "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
-#zcat ${mbr} | { dd bs=1M of=/dev/${dev} oflag=dsync 2>&1 || errexit; } | grep -v "records"
-zcat ${mbr} | ddsync errexit bs=1M of=/dev/${dev}
-devflush; waitdev ${dev}1
+zcat ${mbr} | ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
+devflush ; waitdev ${dev}1
 echo
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w_" |\
         tr _ '\n' | fdisk /dev/${dev} >$redir
-    smart_make_ext4 "porteus" -DS
+    smart_make_ext4 "porteus"
     #printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
     #$time resize2fs /dev/${dev}2 1G 1>&2 ||:  
 else # ----------------------------------------------------------------- VFAT --
-    $time mkfs.vfat -a -F32 -n "porteus" /dev/${dev}1 2>&1
-    printf "n_p_2_ _ _w_" | tr _ '\n' | fdisk /dev/${dev} >$redir
+    $time mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1 2>&1
+    printf "n_p_2_ _+1G_w_" | tr _ '\n' | fdisk /dev/${dev} >$redir
     smart_make_ext4 "usrdata"
 fi #2>&1 >$redir # --------------------------------------------------------------
 
@@ -395,13 +397,17 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n
     mount -t tmpfs tmpfs ${dst}
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
-    if ! $time mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img 2>&1; then
+    if ! $time mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
         rm -f ${dst}/vfat.img; errexit
     fi
     mount -o loop ${dst}/vfat.img ${dst}
     #set +x
 else # ----------------------------------------------------------------- VFAT --
+    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
+    #devflush 1
     mount -o async,noatime /dev/${dev}1 ${dst}
+    mount | grep -qw /dev/${dev}1 || errexit
+    echo
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
@@ -432,7 +438,8 @@ else # ----------------------------------------------------------------- VFAT --
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
     make4fs "changes" ${sve} ${make_ext4_nojournal} >$redir
     d=${dst}/porteus; mkdir -p $d
-    cp -f ${sve} $d; rm -f ${sve}
+    $time cp -f ${sve} $d
+    rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
 fi # ---------------------------------------------------------------------------
 
@@ -447,9 +454,7 @@ if [ -n "${bsi}" ]; then
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
     printf "INFO: custom background '${bgi}' copied"\\n
 fi
-
-#printf "\nINFO: waiting for LAST umount synchronisation...\n"
-#$time sync -f ${dst}/*.txt
+#sync -f ${dst}/*.txt &
 
 # Unmount source and eject USB device #_________________________________________
 set +xe
@@ -457,24 +462,27 @@ set +xe
 function flush_umount_device() {
     local i; 
     #set -x
-    if [ -e /proc/sys/kernel/sysrq ]; then
+    if false && [ -e /proc/sys/kernel/sysrq ]; then
         while grep -Eq "${dev}[1-2]*$" /proc/partitions; do sleep 360
             echo s >/proc/sys/kernel/sysrq 2>/dev/null; done &
     fi
-    {    
-        for i in 1 2 ""; do devflush $i; umount /dev/${dev}$i; done
+    {
+        devflush 1; umount /dev/${dev}1
+        sync -f ${dst}/*.txt 2>/dev/null &
+        devflush 2; wait; umount /dev/${dev}2
+        #for i in 1 2 ""; do devflush $i; umount /dev/${dev}$i; done
         for i in ${dst} ${src} /dev/${dev}?; do
             while mount | grep -wq $i; do
                 umount $i && break
                 sleep 1
             done
         done 
+        devflush
     } 2>&1 | grep -v ": not mounted."
     #set +x
 }
 
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "\\n
-devflush 1; sync -f ${dst}/*.txt
 flush_umount_device
 #$time flush_umount_device 2>&1 | grep "real:"
 { mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
@@ -483,7 +491,7 @@ if [ "$journal" == "yes" ]; then #$ng -lt 16 -a
     #printf \\n"INFO: creating the journal and then checking, wait..."\\n
     #$time tune2fs -O fast_commit  /dev/${dev}2 2>&1
     printf \\n"INFO: creating the journal and then checking, wait..."\\n
-    $time tune2fs -O fast_commit -J size=16384 /dev/${dev}2
+    $time tune2fs -O fast_commit -J size=16 /dev/${dev}2
 else echo; fi
 #printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
 #$time resize2fs /dev/${dev}2
