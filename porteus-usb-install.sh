@@ -172,6 +172,11 @@ function check_dmsg_for_last_attached_scsi() {
     scsi_str=""; scsi_dev=""         # consumer
 }
 
+function timereal() {
+    ( eval "${@:-false}" || echo "real:error($@) $?" ) \
+        2>&1 | time -f%e cat | grep "real:."
+}
+
 ################################################################################
 
 trap 'printf "\n\n"; exit 1' INT
@@ -223,11 +228,13 @@ if ! amiroot; then
     errexit -1
 fi
 
+nice -19 sync &
 echo "
 Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
               with oprtions: ${@:-(none)}
+              kern. cmdline: ${kmp:-(none)}
                     by user: ${SUDO_USER:+$SUDO_USER as }${USER} 
                       devel: ${DEVEL:-unset}"
 
@@ -271,8 +278,9 @@ test -n "$kmp" && kmp="kmap=$kmp"
 
 # Deciding about time keeping and its format
 # time=""; isdevel && time=$(which time)
-time=$(which time)
-time=${time:+$time -freal:"%es\n"}
+#time=$(which time)
+#time=${time:+$time -freal:"%es\n"}
+time='time -freal:%es\n'
 
 # Deciding about output redirection
 redir="/dev/null"; isdevel && redir="/dev/stdout"
@@ -310,7 +318,7 @@ function smart_make_ext4() {
     # if [ $ng -ge $max -a "$journal" == "yes" ]; then
     if is_ext4_install; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        printf "INFO: journaling INIT, will be added WHILE copying, wait..."\n\\n
+        printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
         opts="-J size=16 ${make_ext4fs_notlazy}"
     else
         printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
@@ -326,7 +334,8 @@ dst="/tmp/usb"
 src="/tmp/iso"
 
 echo
-echo "RUNNING: $shs $(basename "$iso") into /dev/$dev" ${kmp:+with $kmp} extfs:$extfs
+echo "RUNNING: $shs $(basename '$iso') into /dev/$dev extfs:$extfs"
+echo "         kern. opts: ${kmp:-(none)}" 
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}
       echo
@@ -342,6 +351,7 @@ WARNING: Are you sure to proceed" || errexit
 if [ "$usrmn" == "0" ]; then
     check_dmsg_for_last_attached_scsi "$dev"
 fi
+wait
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
@@ -394,7 +404,7 @@ fi #2>&1 >$redir # -------------------------------------------------------------
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set -x
     declare -i nb=$(get_diskpart_size 1)
-    printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n
+    printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n\\n
     mount -t tmpfs tmpfs ${dst}
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
     if ! $time mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
@@ -403,9 +413,9 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     mount -o loop ${dst}/vfat.img ${dst}
     #set +x
 else # ----------------------------------------------------------------- VFAT --
-    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
-    #devflush 1
-    mount -o async,noatime /dev/${dev}1 ${dst}
+    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n\\n
+    devflush 1 ; waitdev ${dev}1
+    mount -o async,noatime /dev/${dev}1 ${dst} || errexit
     mount | grep -qw /dev/${dev}1 || errexit
     echo
 fi # ---------------------------------------------------------------------------
@@ -427,16 +437,16 @@ fi
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
-    printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n
+    printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
     ddsync errexit if=${dst}/vfat.img bs=1M of=/dev/${dev}1
     devflush 1
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
     echo
 else # ----------------------------------------------------------------- VFAT --
-    printf \\n"INFO: writing the EXT4 persistence file to changes, wait..."\\n
+    printf \\n"INFO: writing the EXT4 persistence file to changes, wait..."\\n\\n
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    make4fs "changes" ${sve} ${make_ext4_nojournal} >$redir
+    make4fs "changes" ${sve} ${make_ext4_nojournal} ${make_ext4fs_lazyone} >$redir
     d=${dst}/porteus; mkdir -p $d
     $time cp -f ${sve} $d
     rm -f ${sve}
@@ -461,60 +471,60 @@ set +xe
 
 function flush_umount_device() {
     local i; 
-    #set -x
     if false && [ -e /proc/sys/kernel/sysrq ]; then
         while grep -Eq "${dev}[1-2]*$" /proc/partitions; do sleep 360
             echo s >/proc/sys/kernel/sysrq 2>/dev/null; done &
     fi
-    {
-        devflush 1; umount /dev/${dev}1
-        sync -f ${dst}/*.txt 2>/dev/null &
-        devflush 2; wait; umount /dev/${dev}2
-        #for i in 1 2 ""; do devflush $i; umount /dev/${dev}$i; done
+    devflush
+    (
+        nice -19 sync -f ${dst}/*.txt 2>/dev/null &
+        devflush 1; umount /dev/${dev}1 
+        devflush 2; umount /dev/${dev}2
+        wait
+
         for i in ${dst} ${src} /dev/${dev}?; do
             while mount | grep -wq $i; do
                 umount $i && break
                 sleep 1
             done
         done 
-        devflush
-    } 2>&1 | grep -v ": not mounted."
-    #set +x
+    ) 2>&1 | grep -v ": not mounted."
+    
+    { mount | grep /dev/${dev} && echo; }| sed -e "s/.\+/ERROR: &/" >&2
 }
 
-printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "\\n
-flush_umount_device
-#$time flush_umount_device 2>&1 | grep "real:"
-{ mount | grep /dev/${dev} && echo;}| sed -e "s/.\+/ERROR: &/" >&2
+printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "
+timereal flush_umount_device
 
-if [ "$journal" == "yes" ]; then #$ng -lt 16 -a
-    #printf \\n"INFO: creating the journal and then checking, wait..."\\n
-    #$time tune2fs -O fast_commit  /dev/${dev}2 2>&1
-    printf \\n"INFO: creating the journal and then checking, wait..."\\n
+if false; [ "$journal" == "yes" ]; then #$ng -lt 16 -a
+    printf \\n"INFO: creating the journal and then checking, wait..."\\n\\n
     $time tune2fs -O fast_commit -J size=16 /dev/${dev}2
 else echo; fi
-#printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
-#$time resize2fs /dev/${dev}2
+
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
         echo
     done
     echo
-done
-flush_umount_device
+done; flush_umount_device
 
 # Say goodbye and exit #________________________________________________________
 
-udsc1=$(fdisk -l /dev/${dev} | head -n2 | cut -d' ' -f2- | cut -d, -f1 | sed -e 's,\(model:\), \1,')
-udsc2=$(for i in 1 2; do eval $(blkid -o export /dev/${dev}$i); printf "$DEVNAME $LABEL $TYPE\n"; done)
+mkdir -p   ${dst}1 ${dst}2
+mount /dev/${dev}1 ${dst}1
+mount /dev/${dev}2 ${dst}2
+udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
+#udsc1=$(fdisk -l /dev/${dev} | head -n2 | cut -d' ' -f2- | cut -d, -f1 | sed -e 's,\(model:\), \1,')
+#udsc2=$(for i in 1 2; do eval $(blkid -o export /dev/${dev}$i); printf "$DEVNAME $LABEL $TYPE\n"; done)
 while ! eject /dev/${dev}
     do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 if is_ext4_install; then str="EXT4"; else str="LIVE"; fi
 printf "INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
-printf "      $udsc1"  | tr '\n' '\t'; echo
-printf "      $udsc2"  | tr '\n' '\t'; echo; echo
+#printf "      $udsc1"  | tr '\n' '\t'; echo
+#printf "      $udsc2"  | tr '\n' '\t'; echo; echo
+echo "$udsc"; echo
 printf "DONE: Your bootable USB key ready to be removed safely."\\n\\n
 for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
     tr -d '\0' | grep -q sleep360 && kill $i; done 2>/dev/null
