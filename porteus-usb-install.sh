@@ -11,7 +11,7 @@ wdr=$(dirname "$0")
 shs=$(basename "$0")
 
 store_dirn="moonwalker"
-usage_strn="/path/file.iso [/dev/]sdx [it] [--ext4-install]"
+usage_strn="[--user-menu] /path/file.iso [/dev/]sdx [it] [--ext4-install]"
 
 export DEVEL=${DEVEL:-0}
 
@@ -21,6 +21,7 @@ export DEVEL=${DEVEL:-0}
 
 ## Name of the loop file for having the persistence with a VFAT only system
 persistnce_filename="changes.dat"
+kernelargs_filename="cmdline.txt"
 
 ## Comment this line below to avoid creating the journal in the 2nd partition
 journal="yes"
@@ -40,8 +41,9 @@ usbsk_init_filename="porteus-usb-bootable.mbr.gz"
 
 # RAF: basic common functions #_________________________________________________
 
-function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
-function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
+function is_menu_mode() { grep -q -- "--user-menu" /proc/$$/cmdline; }
+function asking_help() { grep -qe "help" -e "\-h" /proc/$$/cmdline; }
+function is_on_demand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
 function perr() { { printf "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
@@ -66,7 +68,7 @@ function search() {
 
 # RAF: basic common check & set #_______________________________________________
 
-if isondemand; then
+if is_on_demand; then
     wdr=$PWD
     perr \\n"###############################################"
     perr \\n"This is an on-demand from remote running script"
@@ -81,6 +83,8 @@ fi
 
 if isdevel; then
     perr \\n"download path: $download_path\nworkingd path: $workingd_path"\\n
+elif amiroot; then
+    : # RAF: if the user just did sudo or uid=0, do not drop priviledges caching
 else
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     sudo -k
@@ -88,14 +92,14 @@ fi
 
 # RAF: internal check & set and early functions #_______________________________
 
-if isondemand; then
+if is_on_demand; then
     perr \\n"ERROR: this script is NOT supposed being executed on-demand, abort!"
     perr \\n"       For remote installation, use porteus-net-install.sh, instead"\\n
     errexit
 fi
 
 ################################################################################
-if askinghelp; then usage errexit 0; else ######################################
+if asking_help; then usage errexit 0; else ##################################
 
 function missing() {
     perr \\n"ERROR: file '${1:-}' is missing or wrong type, abort!"\\n
@@ -183,7 +187,7 @@ trap 'printf "\n\n"; exit 1' INT
 
 declare -i extfs=0 usrmn=0
 
-if [ "x$1" == "x--user-menu" ]; then
+if is_menu_mode; then
     usrmn=1; set --
 else
     iso=${1:-}
@@ -195,6 +199,7 @@ if [ "x$3" == "x--ext4-install" ]; then
 fi
 kmp=${3:-}
 extfs=${4:+4}
+kargs=$(cat $(search "$kernelargs_filename") 2>/dev/null ||:)
 
 sve=$persistnce_filename
 bgi=$background_filename
@@ -202,7 +207,7 @@ bsi=$bootscreen_filename
 cfg=$porteus_config_path
 mbr=$usbsk_init_filename
 
-if [ "$usrmn" == "0" ]; then
+if ! is_menu_mode; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
     test -b "/dev/$dev" || usage missing "${dev:+/dev/}${dev:-block_device}"
     test -r "$iso" || iso="$wdr/$iso"
@@ -219,26 +224,30 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || usage missing "$mbr"
 
 if ! amiroot; then
-    printf \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0})."\\n
+    printf \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0}) (menu:$usrmn)."\\n
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
-    isdevel || sudo -k
-    test "$usrmn" != "0" && set -- "--user-menu"
+    isdevel || { amiroot || sudo -k; }
+    is_menu_mode && set -- "--user-menu"
     exec sudo -E bash $0 "$@" # exec replaces this process, no return from here
     perr \\n"ERROR: exec fails or a bug hits here, abort!"\\n
     errexit -1
 fi
 
-nice -19 sync &
+nice -19 sync & # RAF: a wait expects to join with this process in background
+sync_pid=$!
+
+str=${usrmn/1/user menu mode active}
+str=${str/0/(none)}
 echo "
 Executing shell script from: $wdr
        current working path: $PWD
            script file name: $shs
-              with oprtions: ${@:-(none)}
-              kern. cmdline: ${kmp:-(none)}
+              with oprtions: ${@:-$str}
+              kern. cmdline: ${kargs:-(none)}
                     by user: ${SUDO_USER:+$SUDO_USER as }${USER} 
                       devel: ${DEVEL:-unset}"
 
-if [ "$usrmn" != "0" ]; then
+if is_menu_mode; then
     # RAF: selecting the device by insertion is the most user-friendly way to go
     while true; do
         find_last_attached_scsi_unit
@@ -257,6 +266,8 @@ if [ "$usrmn" != "0" ]; then
         iso=$(command ls -1t "$d"/*.iso "$d"/*.ISO 2>/dev/null ||:)
         test -n "$iso" && break
     done
+    # RAF, TODO: if many ISO found, let the user choose among them
+    iso=$(echo "$iso" | head -n1)
     test -r "$iso" || missing "ISO:${iso:- not found}"
     agree "Is this '$iso' the ISO file you want use" || usage errexit
 
@@ -274,7 +285,7 @@ or press ENTER for leave the current settings: " kmp
 fi
 
 # Deciding about keyboard layout
-test -n "$kmp" && kmp="kmap=$kmp"
+test -n "$kmp" && kargs="kmap=$kmp ${kargs}"
 
 # Deciding about time keeping and its format
 # time=""; isdevel && time=$(which time)
@@ -333,9 +344,14 @@ function smart_make_ext4() {
 dst="/tmp/usb"
 src="/tmp/iso"
 
+eject -t /dev/${dev}  # RAF: give the device a wake-up, just in case
+sleep 0.25
+partprobe
+
 echo
-echo "RUNNING: $shs $(basename '$iso') into /dev/$dev extfs:$extfs"
-echo "         kern. opts: ${kmp:-(none)}" 
+echo "RUNNING: $shs writes on /dev/$dev with extfs:$extfs"
+echo "         ISO filepath: $iso"
+echo "         kernel. opts: ${kargs:-(none)}"
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}
       echo
@@ -343,15 +359,18 @@ echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
       echo
       mount | cut -d\( -f1 | grep "/dev/${dev}" | sort -n \
   | sed -e "s,^.*$,& <-- MOUNTED !!," | grep . ||:
-} | sed -e "s,^.*$,\t&,"
+} | sed -e "s,^.*$,\t &,"
 besure "WARNING
 WARNING: data on '/dev/$dev' and its partitions will be permanently LOST !!
 WARNING
 WARNING: Are you sure to proceed" || errexit
-if [ "$usrmn" == "0" ]; then
+if ! is_menu_mode; then
     check_dmsg_for_last_attached_scsi "$dev"
 fi
-wait
+if [ -e /proc/$sync_pid ]; then
+    perr \\n"WARNING: system busy, waiting for sync (pid:$sync_pid) returns..."\\n
+    wait $sync_pid
+fi
 
 # Clear previous failed runs, eventually
 umount ${src} ${dst} 2>/dev/null || true
@@ -426,7 +445,7 @@ mount -o loop,ro ${iso} ${src} || errexit
 printf "INFO: copying Porteus EFI/boot files from ISO file ... "
 $time cp -arf ${src}/boot ${src}/EFI ${dst} 2>&1
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-str=" ${kmp}"; is_ext4_install || str="/${sve} ${kmp}"
+str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
 grep -n  "APPEND changes=/porteus${str}" ${dst}/${cfg}
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
