@@ -73,6 +73,8 @@ This is a list of system choices that I made in advance for customising the Port
 
 5. With `--ext4-install`, the EFI boot partition size is 16 MB and remains 4 MB free by default with Porteus 5.01. It contains iso/syslinux and lilo stuff, the kernel and initrd.
 
+6. The file `cmdline.txt` contains options for kernel line, by default it sets `noswap` and activate the IOMMU in passtrought mode for those machine that support it in full. The swap is not just a bottleneck but a performance killer, let the users deal with it manually when they desperately need it, only.
+
 ---
 
 ### Suggested choices
