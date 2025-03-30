@@ -102,7 +102,7 @@ USB stick: **Samsung FIT plus** [64GB](https://ssd-tester.com/samsung_fit_plus_6
 - It is very short, preventing USB port damage, essential for long-term use.
 - Despite its size it is quite generous in size and [pretty fast](img/1st-topperf-branded-nano-usbstick.png) with USB 3.1.
 - Whenever an old laptop/PC hasn't 3.x, exchanging data on 3.1 is faster.
-- Check in the ThinkPaa X201 description using an micro-SD card, instead.
+- Check in the ThinkPaa X201 section [about](#about-other-busesports) using an micro-SD card, instead.
 
 Full installation:
 
