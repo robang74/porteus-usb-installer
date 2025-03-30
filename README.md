@@ -43,7 +43,15 @@ Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and runnin
 
 <div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div>
 
-How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
+How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds (since v0.3.3, less than 40s) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
+
+#### About other buses/ports
+
+An alternative to using a USB pendrive, is leveraging the internal u/SD reader, if it exists to save a USB port. In this case, it is useful to keep in mind that such embedded readers, like the one included into the Thinkpad X201, is limited by the USB version bus bandwidth.
+
+So, it does not provide any advantages over the USB bus, and the same **might** apply also to the ExpressCard/54 slot using an adapter working as an USB device and limited to 133 MB/s on those rare units that have the USB 3.0. Instead, using the ExpressCard/54 with a PCIe adapter it can work at 250 MB/s which is near the 300M MB/s available on the internal SATA2.
+
+In conclusion, a USB 2.0 laptop will be limited at 480 Mbps in accessing storage devices unless SATA2 or EC54/PCie is used. And in this particular case, the adoption of a ExpressCard/54 USB 3.0 adapter can provide that upgrade needed to leverage faster USB devices.
 
 ---
 
@@ -94,6 +102,7 @@ USB stick: **Samsung FIT plus** [64GB](https://ssd-tester.com/samsung_fit_plus_6
 - It is very short, preventing USB port damage, essential for long-term use.
 - Despite its size it is quite generous in size and [pretty fast](img/1st-topperf-branded-nano-usbstick.png) with USB 3.1.
 - Whenever an old laptop/PC hasn't 3.x, exchanging data on 3.1 is faster.
+- Check in the ThinkPaa X201 description using an micro-SD card, instead.
 
 Full installation:
 
