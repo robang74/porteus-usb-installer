@@ -121,13 +121,13 @@ function agree() {
 
 function waitdev() {
     local i
-    partprobe
     for i in $(seq 1 100); do
+        partprobe
+        sleep 0.1
         if grep -q " $1$" /proc/partitions; then
             test -b /dev/$1
             return $?
         fi; printf .
-        sleep 0.1
     done
     perr \\n"ERROR: waitdev('$1') failed, abort!"\\n
     errexit
@@ -181,6 +181,8 @@ function timereal() {
     ( eval "${@:-false}" || echo "real:error($?)" )  \
          | $time cat 2>&1 | grep -e "real:."
 }
+
+function partxy() { partx /dev/${dev} 2>/dev/null || partprobe; }
 
 ################################################################################
 
@@ -347,6 +349,11 @@ function mkdir_guestmp_dirs() {
     chmod a+wrx $1/tmp
 }
 
+function new_disk_id() {
+    local diskid=$(echo $RANDOM | md5sum | head -c8)
+    echo "x_i_0x${diskid}_r_w" | tr '_' '\n' | fdisk /dev/${dev} >/dev/null ||:
+}
+
 # ------------------------------------------------------------------------------
 # RAF: TODO: here is better to use mktemp, instead
 #
@@ -406,36 +413,38 @@ printf "INFO: invalidating all previous filesystem signatures"
 if which wipefs >/dev/null; then
     printf " ... "
     { timereal "
-        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null
-        ddsync : if=/dev/zero bs=1k count=1 of=/dev/${dev}"; 
+        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null;
+        #ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
     } 2>&1 | grep -v 'offset 0x' ||:
-else
-    printf ", wait..."\\n\\n
-    bs="4M"; for i in /dev/${dev}? "1k" /dev/${dev}; do
-        if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
-        if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-        ddsync : if=/dev/zero bs=$bs count=1 of=$i
-    done
+    printf "INFO: invalidating all previous partitions"
 fi
+printf ", wait..."\\n\\n
+bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
+    if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
+    if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
+    ddsync : if=/dev/zero bs=$bs count=1 of=$i
+done
 
 # Write MBR and essential partition table #_____________________________________
 
 printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
 { zcat "${mbr}" || errexit; } |\
     ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
+for i in "" 1 2; do devflush $i; done
+new_disk_id 2>/dev/null
 waitdev ${dev}1
 echo
 
 str="porteus"
 if is_ext4_install; then # --------------------------------------------- EXT4 --
-    printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w_" |\
+    echo "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w" |\
         tr _ '\n' | fdisk /dev/${dev} >$redir
     printf "INFO: writing creating EXT4 $str filesystem, wait..."
     $time smart_make_ext4 "$str"
 else # ----------------------------------------------------------------- VFAT --    
     printf "INFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1
-    printf "n_p_2_ _+1G_w_" | tr _ '\n' | fdisk /dev/${dev} >$redir
+    echo "n_p_2_ _+1G_w" | tr _ '\n' | fdisk /dev/${dev} >$redir
     str="usrdata"
     printf \\n"INFO: writing creating EXT4 $str filesystem, wait..."
     $time smart_make_ext4 "$str"
@@ -541,11 +550,11 @@ timereal flush_umount_device
 
 if [ "$journal" == "yes" ]; then
     printf \\n"INFO: creating the journal and then checking ... "
-    timereal tune2fs -O fast_commit -J size=16 /dev/${dev}2
+    timereal tune2fs -U random -O fast_commit -J size=16 /dev/${dev}2
 fi
 
 printf \\n"INFO: resizing EXT4 data partition to fit the whole disk ... "
-printf 'd_2_n_p_2_ _ _n_w_' | tr '_' '\n' | fdisk /dev/${dev} >/dev/null 2>&1
+echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
 timereal "
 waitdev ${dev}2 
 fsck -yf /dev/${dev}2
@@ -574,7 +583,7 @@ if [ "$DEVEL_ZEROING" == "1" ]; then
     perr "WARNING: devel zeroing ... "
     timereal ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}
     perr "WARNING"\\n\\n
-    devflush; partprobe    
+    devflush; partprobe
 fi
 
 while ! eject /dev/${dev}
