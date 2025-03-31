@@ -237,6 +237,8 @@ fi
 
 str="/proc/sys/kernel/sysrq"
 if test -e $str && echo s >$str; then
+    :
+else
     nice -19 sync & # RAF: a wait expects to join with this process in background
     sync_pid=$!
 fi 2>/dev/null
