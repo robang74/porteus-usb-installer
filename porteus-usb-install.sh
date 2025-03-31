@@ -31,7 +31,7 @@ blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
 make_ext4_nojournal="-O ^has_journal"
-make_ext4fs_options="-DO fast_commit -J size=16"
+make_ext4fs_options="-DO fast_commit"
 make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
 make_ext4fs_notlazy="-E lazy_itable_init=0,lazy_journal_init=0"
 porteus_config_path="/boot/syslinux/porteus.cfg"
@@ -332,7 +332,7 @@ function smart_make_ext4() {
     if false; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
         printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
-        opts="${make_ext4fs_notlazy}"
+        opts="${make_ext4fs_notlazy} -J size=16"
     else
         printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
     fi
@@ -403,16 +403,19 @@ declare -i tms=$(date +%s%N)
 # RAF: zeroing the filesystem signatures prevents automounting #________________
 
 printf "INFO: invalidating all previous filesystem signatures"
-if which wipefs >/dev/null; then
+if false && which wipefs >/dev/null; then
     printf " ... "
-    timereal "wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1" | grep -v 'offset 0x'
+    { timereal "
+        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null
+        ddsync : if=/dev/zero bs=1k count=1 of=/dev/${dev}"; 
+    } 2>&1 | grep -v 'offset 0x' ||:
 else
     printf ", wait..."\\n\\n
-    for i in /dev/${dev}?; do
+    bs="4M"; for i in /dev/${dev}? "1k" /dev/${dev}; do
+        if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
         if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-        ddsync : if=/dev/zero bs=4M count=1 of=$i
+        ddsync : if=/dev/zero bs=$bs count=1 of=$i
     done
-    echo
 fi
 
 # Write MBR and essential partition table #_____________________________________
@@ -450,7 +453,7 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     mount -o loop ${dst}/vfat.img ${dst}
     #set +x
 else # ----------------------------------------------------------------- VFAT --
-    printf \\n"INFO: mounting /dev/${dev}1 on ${dst} ... "
+    printf "INFO: mounting /dev/${dev}1 on ${dst} ... "
     timereal "
     devflush 1 ; waitdev ${dev}1
     mount -o async,noatime /dev/${dev}1 ${dst} || errexit
@@ -460,9 +463,13 @@ fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
 
+function cpvfatext4() {
+    ({ cp "$@" || errexit; } 2>&1 | grep -v "failed to preserve ownership" ||:)
+}
+
 mount -o loop,ro ${iso} ${src} || errexit
 printf \\n"INFO: copying Porteus EFI/boot files from ISO file ... "
-timereal cp -arf ${src}/boot ${src}/EFI ${dst}
+timereal cpvfatext4 -arf ${src}/boot ${src}/EFI ${dst}
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
@@ -492,7 +499,7 @@ fi # ---------------------------------------------------------------------------
 # Copying Porteus system and modules from ISO file#_____________________________
 
 printf \\n"INFO: copying Porteus core system files ... "
-timereal cp -arf ${src}/*.txt ${src}/porteus ${dst}
+timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
 if [ -n "${bsi}" ]; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
@@ -553,8 +560,6 @@ for i in 1 2; do
     echo
 done
 
-
-
 # Say goodbye and exit #________________________________________________________
 
 mkdir -p   ${dst}1 ${dst}2
@@ -563,6 +568,15 @@ mount /dev/${dev}2 ${dst}2
 mkdir_guestmp_dirs ${dst}2
 udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
 flush_umount_device
+
+if [ "$DEVEL_ZEROING" == "1" ]; then
+    perr "WARNING"\\n
+    perr "WARNING: devel zeroing ... "
+    timereal ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}
+    perr "WARNING"\\n\\n
+    devflush; partprobe    
+fi
+
 while ! eject /dev/${dev}
     do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
