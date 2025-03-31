@@ -351,7 +351,7 @@ function mkdir_guestmp_dirs() {
 
 function new_disk_id() {
     local diskid=$(echo $RANDOM | md5sum | head -c8)
-    echo "x_i_0x${diskid}_r_w" | tr '_' '\n' | fdisk /dev/${dev} >/dev/null ||:
+    echo "x_i_0x${diskid}_r_w" | tr '_' '\n' | fdisk $1 >/dev/null ||:
 }
 
 # ------------------------------------------------------------------------------
@@ -413,28 +413,27 @@ printf "INFO: invalidating all previous filesystem signatures"
 if which wipefs >/dev/null; then
     printf " ... "
     { timereal "
-        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null;
-        ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
+        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null ||:; 
+        #ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
     } 2>&1 | grep -v 'offset 0x' ||:
     printf "INFO: invalidating all previous partitions"
 fi
 printf ", wait..."\\n\\n
-bs="4M"; for i in /dev/${dev}? "1M" /dev/${dev}; do
+bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
     if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
     if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
     ddsync : if=/dev/zero bs=$bs count=1 of=$i
-done
-devflush; partprobe
-eject ${dev}; sleep 0.25; eject -t /dev/${dev}
+done | grep . || echo "nothing to do"
+#devflush; partprobe
+#eject ${dev}; sleep 0.25; eject -t /dev/${dev}
 
 # Write MBR and essential partition table #_____________________________________
 
 printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
-{ zcat "${mbr}" || errexit; } |\
-    ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
-devflush
-new_disk_id #2>/dev/null
-waitdev ${dev}1
+mount -t tmpfs tmpfs ${dst}
+zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
+ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
+devflush; waitdev ${dev}1; rm -f ${dst}/mbr.ing
 echo
 
 str="porteus"
@@ -456,20 +455,18 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set -x
     declare -i nb=$(get_diskpart_size 1)
     printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
-    mount -t tmpfs tmpfs ${dst}
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
     if ! timereal mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
-        rm -f ${dst}/vfat.img; errexit
+        rm -f ${dst}/vfat.img; umount ${dst}; errexit
     fi
     mount -o loop ${dst}/vfat.img ${dst}
     #set +x
 else # ----------------------------------------------------------------- VFAT --
-    printf "INFO: mounting /dev/${dev}1 on ${dst} ... "
-    timereal "
+    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
     devflush 1 ; waitdev ${dev}1
-    mount -o async,noatime /dev/${dev}1 ${dst} || errexit
+    mount -o async,noatime /dev/${dev}1 ${dst}
     mount | grep -qw /dev/${dev}1 || errexit
-"
+
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
@@ -518,7 +515,6 @@ if [ -n "${bsi}" ]; then
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
     printf \\n"INFO: custom background '${bgi}' copied"\\n
 fi
-#sync -f ${dst}/*.txt &
 
 # Unmount source and eject USB device #_________________________________________
 set +xe
