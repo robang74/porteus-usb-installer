@@ -414,24 +414,26 @@ if which wipefs >/dev/null; then
     printf " ... "
     { timereal "
         wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null;
-        #ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
+        ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
     } 2>&1 | grep -v 'offset 0x' ||:
     printf "INFO: invalidating all previous partitions"
 fi
 printf ", wait..."\\n\\n
-bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
+bs="4M"; for i in /dev/${dev}? "1M" /dev/${dev}; do
     if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
     if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
     ddsync : if=/dev/zero bs=$bs count=1 of=$i
 done
+devflush; partprobe
+eject ${dev}; sleep 0.25; eject -t /dev/${dev}
 
 # Write MBR and essential partition table #_____________________________________
 
 printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
 { zcat "${mbr}" || errexit; } |\
     ddsync errexit bs=1M iflag=fullblock of=/dev/${dev}
-for i in "" 1 2; do devflush $i; done
-new_disk_id 2>/dev/null
+devflush
+new_disk_id #2>/dev/null
 waitdev ${dev}1
 echo
 
