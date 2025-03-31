@@ -403,7 +403,7 @@ declare -i tms=$(date +%s%N)
 # RAF: zeroing the filesystem signatures prevents automounting #________________
 
 printf "INFO: invalidating all previous filesystem signatures"
-if false && which wipefs >/dev/null; then
+if which wipefs >/dev/null; then
     printf " ... "
     { timereal "
         wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null
