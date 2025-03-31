@@ -177,8 +177,9 @@ function check_dmsg_for_last_attached_scsi() {
 }
 
 function timereal() {
-    ( eval "${@:-false}" || echo "real:error($@) $?" ) \
-        2>&1 | time -f%e cat | grep "real:."
+    local time='time -freal:%es\n'
+    ( eval "${@:-false}" || echo "real:error($?)" )  \
+         | $time cat 2>&1 | grep -e "real:."
 }
 
 ################################################################################
@@ -234,8 +235,11 @@ if ! amiroot; then
     errexit -1
 fi
 
-nice -19 sync & # RAF: a wait expects to join with this process in background
-sync_pid=$!
+str="/proc/sys/kernel/sysrq"
+if test -e $str && echo s >$str; then
+    nice -19 sync & # RAF: a wait expects to join with this process in background
+    sync_pid=$!
+fi 2>/dev/null
 
 str=${usrmn/1/user menu mode active}
 str=${str/0/(none)}
@@ -288,12 +292,6 @@ fi
 # Deciding about keyboard layout
 test -n "$kmp" && kargs="kmap=$kmp ${kargs}"
 
-# Deciding about time keeping and its format
-# time=""; isdevel && time=$(which time)
-#time=$(which time)
-#time=${time:+$time -freal:"%es\n"}
-time='time -freal:%es\n'
-
 # Deciding about output redirection
 redir="/dev/null"; isdevel && redir="/dev/stdout"
 
@@ -339,6 +337,13 @@ function smart_make_ext4() {
     make4fs "$1" /dev/${dev}2 $opts
 }
 
+function mkdir_guestmp_dirs() {
+    test -d "$1" || return 1
+    mkdir $1/guest $1/tmp
+    chown 1000.1000 $1/guest $1/tmp
+    chmod a+wrx $1/tmp
+}
+
 # ------------------------------------------------------------------------------
 # RAF: TODO: here is better to use mktemp, instead
 #
@@ -369,9 +374,13 @@ WARNING: Are you sure to proceed" || errexit
 if ! is_menu_mode; then
     check_dmsg_for_last_attached_scsi "$dev"
 fi
+
 if [ -e /proc/$sync_pid ]; then
     perr \\n"WARNING: system busy, waiting for sync (pid:$sync_pid) returns..."\\n
-    wait $sync_pid
+    wait $sync_pid; sync
+else
+    perr \\n"INFO: before proceding sync the system I/O pending operations, wait..."\\n
+    sync
 fi
 
 # Clear previous failed runs, eventually
@@ -393,13 +402,12 @@ declare -i tms=$(date +%s%N)
 printf "INFO: invalidating all previous filesystem signatures"
 if which wipefs >/dev/null; then
     printf " ... "
-    $time wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1|grep -v "offset 0x"
+    timereal "wipefs --all /dev/${dev}1 /dev/${dev}2 2>&1|grep -v 'offset 0x'"
 else
     printf ", wait..."\\n\\n
     for i in /dev/${dev}?; do
         if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
         ddsync : if=/dev/zero bs=4M count=1 of=$i
-        #dd if=/dev/zero bs=4M count=1 of=$i oflag=dsync 2>&1|grep -v "records"
     done
     echo
 fi
@@ -415,10 +423,8 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     printf "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w_" |\
         tr _ '\n' | fdisk /dev/${dev} >$redir
     smart_make_ext4 "porteus"
-    #printf \\n"INFO: resizing the EXT4 filesystem to 1GB, wait..."\\n
-    #$time resize2fs /dev/${dev}2 1G 1>&2 ||:  
 else # ----------------------------------------------------------------- VFAT --
-    $time mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1 2>&1
+    timereal mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1
     printf "n_p_2_ _+1G_w_" | tr _ '\n' | fdisk /dev/${dev} >$redir
     smart_make_ext4 "usrdata"
 fi #2>&1 >$redir # --------------------------------------------------------------
@@ -429,7 +435,7 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition, wait..."\\n\\n
     mount -t tmpfs tmpfs ${dst}
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
-    if ! $time mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
+    if ! timereal mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
         rm -f ${dst}/vfat.img; errexit
     fi
     mount -o loop ${dst}/vfat.img ${dst}
@@ -439,14 +445,13 @@ else # ----------------------------------------------------------------- VFAT --
     devflush 1 ; waitdev ${dev}1
     mount -o async,noatime /dev/${dev}1 ${dst} || errexit
     mount | grep -qw /dev/${dev}1 || errexit
-    echo
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
 
 mount -o loop,ro ${iso} ${src} || errexit
 printf "INFO: copying Porteus EFI/boot files from ISO file ... "
-$time cp -arf ${src}/boot ${src}/EFI ${dst} 2>&1
+timereal cp -arf ${src}/boot ${src}/EFI ${dst}
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
@@ -468,17 +473,16 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
 else # ----------------------------------------------------------------- VFAT --
     printf \\n"INFO: writing the EXT4 persistence file to changes, wait..."\\n\\n
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    make4fs "changes" ${sve} ${make_ext4_nojournal} ${make_ext4fs_lazyone} >$redir
-    d=${dst}/porteus; mkdir -p $d
-    $time cp -f ${sve} $d
-    rm -f ${sve}
+    make4fs 'changes' ${sve} ${make_ext4_nojournal} ${make_ext4fs_lazyone} >$redir
+    d=${dst}/porteus; mkdir -p $d; str="cp -f ${sve} $d"
+    printf "$str"\\n; timereal "$str"; rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus system and modules from ISO file#_____________________________
 
 printf "INFO: copying Porteus core system files ... "
-$time cp -arf ${src}/*.txt ${src}/porteus ${dst} 2>&1
+timereal cp -arf ${src}/*.txt ${src}/porteus ${dst}
 if [ -n "${bsi}" ]; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
@@ -520,32 +524,35 @@ timereal flush_umount_device
 
 if false; [ "$journal" == "yes" ]; then #$ng -lt 16 -a
     printf \\n"INFO: creating the journal and then checking, wait..."\\n\\n
-    $time tune2fs -O fast_commit -J size=16 /dev/${dev}2
+    timereal tune2fs -O fast_commit -J size=16 /dev/${dev}2
 else echo; fi
 
+printf "INFO: resizing EXT4 data partition to fit the whole disk ... "
+printf 'd_2_n_p_2_ _ _n_w_' | tr '_' '\n' | fdisk /dev/${dev} >$redir
+timereal "waitdev ${dev}2 && resize2fs /dev/${dev}2"
+echo
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
         echo
     done
     echo
-done; flush_umount_device
+done;
+
 
 # Say goodbye and exit #________________________________________________________
 
 mkdir -p   ${dst}1 ${dst}2
 mount /dev/${dev}1 ${dst}1
 mount /dev/${dev}2 ${dst}2
+mkdir_guestmp_dirs ${dst}2
 udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
-#udsc1=$(fdisk -l /dev/${dev} | head -n2 | cut -d' ' -f2- | cut -d, -f1 | sed -e 's,\(model:\), \1,')
-#udsc2=$(for i in 1 2; do eval $(blkid -o export /dev/${dev}$i); printf "$DEVNAME $LABEL $TYPE\n"; done)
+flush_umount_device
 while ! eject /dev/${dev}
     do sleep 1; done
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 if is_ext4_install; then str="EXT4"; else str="LIVE"; fi
 printf "INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
-#printf "      $udsc1"  | tr '\n' '\t'; echo
-#printf "      $udsc2"  | tr '\n' '\t'; echo; echo
 echo "$udsc"; echo
 printf "DONE: Your bootable USB key ready to be removed safely."\\n\\n
 for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
