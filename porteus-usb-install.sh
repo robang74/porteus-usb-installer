@@ -31,7 +31,7 @@ blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
 make_ext4_nojournal="-O ^has_journal"
-make_ext4fs_options="-DO fast_commit"
+make_ext4fs_options="-DO fast_commit -J size=16"
 make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
 make_ext4fs_notlazy="-E lazy_itable_init=0,lazy_journal_init=0"
 porteus_config_path="/boot/syslinux/porteus.cfg"
@@ -329,10 +329,10 @@ function smart_make_ext4() {
     # let ng=($(get_diskpart_size)/2048)/1024
     # if [ $ng -ge $max -a "$journal" == "yes" ]; then
     printf \\n\\n
-    if is_ext4_install; then
+    if false; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
         printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
-        opts="-J size=16 ${make_ext4fs_notlazy}"
+        opts="${make_ext4fs_notlazy}"
     else
         printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
     fi
@@ -532,7 +532,7 @@ function flush_umount_device() {
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
-if ! is_ext4_install; then
+if [ "$journal" == "yes" ]; then
     printf \\n"INFO: creating the journal and then checking ... "
     timereal tune2fs -O fast_commit -J size=16 /dev/${dev}2
 fi
