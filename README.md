@@ -191,7 +191,7 @@ However, those USB dongle based on RTL8188 at 150 MBit/s - which were usually to
 
 The main idea is to create a bootable USB pendrive quick (kiosk mode) which EXT4 will be finalised during its use, **no matter when or how it would be detached from the USB port**. Read the last part again to appreciate the *magic*. Obviously, there is a drawback, the first time(s) in use, the system will appear a little slower in dealing with the writings.
 
-So, the bootable USB stick is ready when the script tells you that you can safely detach it. Instead, if you live attached, the kernel will complete the work on the EXT4 filesystem. To see these actions, use `sudo iotop` with `CRTL-T` if that option is not enabled by default. You will see the kernel threads like tune2fs, mkfs.ext4 and dumpfs doing their job in the background.
+So, the bootable USB stick is ready when the script tells you that you can safely detach it. **Instead**, if you live attached then the kernel will complete the work on the EXT4 filesystem. To see these actions, use `sudo iotop` with `CRTL-T` if that option is not enabled by default. You will see the kernel threads like tune2fs, mkfs.ext4 and dumpfs doing their job in the background.
 
 This means that inserting this USB pendrive to rewrite it with the usb-install script will take you a much longer time. Because, the kernel will complete the previous tasks about finalising the EXT4 filesystem and **THEN**, it will provide to fulfill the duties related to write the data from the script. Unless `DEVEL_ZEROING=1` has been used before.
 
