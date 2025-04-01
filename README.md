@@ -65,7 +65,7 @@ In fact, it supports SATA2 SSD and 16GB of DDR3 RAM despite its specification in
 
 Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and running on an ultra-old Thinkpad X220 equipped with 4GB of RAM. The storage stick is inserted in the USB 2.0 port, on the bottom left angle, and it is so short that it cannot even be seen without checking for it specifically for it.
 
-<div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div>
+<div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div><br>
 
 How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds (since v0.3.3, less than 40s) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
 
