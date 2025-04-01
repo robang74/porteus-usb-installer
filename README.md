@@ -99,7 +99,7 @@ This is a list of system choices that I made in advance for customising the Port
 
 2. I [decided](https://chatgpt.com/share/67e01ea8-a0f4-8012-9178-48d1c76337e9) to go without a journal within the persistent loop file because it is saved on a VFAT. It is faster and stresses the USB key less, and thus increases its durability.
 
-3. The size of the first partition into the MBR is too big to fit a common 1GB usbkey which is usually 10^9 bytes eq. to 1.953.125 blocks. Thus a 2GB usbkey is the min. required.
+3. To mitigate the Kiosk mode drawbacks, the lazy init of the EXT4 creates I/O workload until the filesystem is finalised and it depends on its size, both variants are limited to fit into a 2GB usbkey. In the LIVE this brings to have almost the same free space in the two partitions.
 
 4. The size of the persistent loop file has been set to 128Mb in such a way there will be 430MB c.a. of free space to install optional modules. As much as the whole Porteus base.
 
