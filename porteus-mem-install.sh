@@ -135,7 +135,8 @@ function waitdev() {
 
 function make4fs() {
     local lbl=$1 dev=$2; shift 2
-    mkfs.ext4 -L "$lbl" ${make_ext4fs_options} -F $dev "$@"
+    { mkfs.ext4 -L "$lbl" ${make_ext4fs_options} -F $dev "$@" || errexit; } \
+        2>&1 | grep -v "^mke2fs [0-9.]\+ (" ||:
 }
 
 scsi_str=""; scsi_dev="";
@@ -337,17 +338,17 @@ function smart_make_ext4() {
     # declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
     # let ng=($(get_diskpart_size)/2048)/1024
     # if [ $ng -ge $max -a "$journal" == "yes" ]; then
-    printf \\n\\n
+    echo
     if [ ! -b "$2" ] ; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
+        printf "INFO: journaling INIT, will be added WHILE copying ... "
         opts="${make_ext4fs_notlazy} -J size=16"
         journal="no"
     else
-        printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
+        printf "INFO: journaling SKIP, will be added AFTER copying ... "
     fi
-    waitdev ${dev}2
-    make4fs "$1" $2 $opts
+    timereal make4fs "$1" $2 $opts
+    echo
 }
 
 function mkdir_guestmp_dirs() {
@@ -464,21 +465,24 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     str="EFIBOOT"
     update_partition_table "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_"
     declare -i nb=$(get_diskpart_size 1)
-    printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
+    printf "\\nINFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
     if ! timereal "dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none;
                    mkfs.vfat -n $str -aI ${dst}/vfat.img"
     then rm -f ${dst}/vfat.img; umount ${dst}; errexit; fi
     mount -o loop ${dst}/vfat.img ${dst}
     mount | grep -qw ${dst}/vfat.img || errexit
+    waitdev ${dev}1; waitdev ${dev}2
 else # ----------------------------------------------------------------- VFAT --
     str="porteus"
     update_partition_table "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_"
-    printf "INFO: writing creating VFAT $str filesystem ... "
+    waitdev ${dev}1
+    printf "\\nINFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1
-    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
+    printf "\\nINFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
     devflush 1 ; waitdev ${dev}1
     mount -o async,noatime /dev/${dev}1 ${dst}
     mount | grep -qw /dev/${dev}1 || errexit
+    waitdev ${dev}2
 fi #----------------------------------------------------------------------------
 # RAF: at this point VFAT image or partition is formated and mounted -----------
 
@@ -488,7 +492,7 @@ function cpvfatext4() {
 
 function copy_core_files_to_dst() {
     local dst=$1 dev=
-    printf \\n"INFO: copying Porteus core system files ... "
+    printf "INFO: copying Porteus core system files ... "
     timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
     if [ -n "${bsi}" ]; then
         lpd=${dst}/porteus/rootcopy
@@ -497,13 +501,13 @@ function copy_core_files_to_dst() {
         chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
         printf \\n"INFO: custom background '${bgi}' copied"\\n
     fi
-    dev=$(df | sed -ne "s,\(/dev/loop[0-9]\+\) .*${dst},\\1,p" ||:)
+    dev=$(df | sed -ne "s,\(/dev/loop[0-9]\+\) .*${dst}$,\\1,p" ||:)
     test -b "$dev" && blockdev --flushbufs ${dev} ||:
 }
 
 function copy_boot_files_to_dst() {
     mount -o loop,ro ${iso} ${src} || errexit
-    printf \\n"INFO: copying Porteus EFI/boot files from ISO file ... "
+    printf "INFO: copying Porteus EFI/boot files from ISO file ... "
     timereal cpvfatext4 -arf ${src}/boot ${src}/EFI ${dst}
     test -r ${dst}/${cfg} || missing ${dst}/${cfg}
     str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
@@ -516,10 +520,12 @@ function copy_boot_files_to_dst() {
 
 # Copying Porteus files from ISO file #________________________________
 
-copy_boot_files_to_dst
+echo
+copy_boot_files_to_dst ${dst}
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     :
 else # ----------------------------------------------------------------- VFAT --
+    echo
     copy_core_files_to_dst ${dst}
 fi # ---------------------------------------------------------------------------
 
@@ -554,8 +560,8 @@ dd_bs1m_zeroing() { dd if=/dev/zero bs=1M status=none "$@"; }
 do_mount_tmpfs_ext4img() {
     local dst=${mem} str=$1; shift
     mkdir -p ${dst}; mount -t tmpfs tmpfs ${dst}
-    dd_bs1m_zeroing of=${dst}/${ext4img} "$@"
-    smart_make_ext4 "$str" ${dst}/${ext4img} 2>&1 | grep -v "^mke2fs [0-9.]\+ ("
+    timereal dd_bs1m_zeroing of=${dst}/${ext4img} "$@"
+    smart_make_ext4 "$str" ${dst}/${ext4img}
     mount -o loop ${dst}/${ext4img} ${dst}
 }
 
@@ -571,10 +577,10 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     str="porteus"
     if [ $IMGSIZE -gt 0 ]; then
         printf "INFO: creating the EXT4 $str filesystem in the MEM ... "
-        timereal do_mount_tmpfs_ext4img "$str" count=$IMGSIZE;
-        copy_core_files_to_dst ${mem}; umount ${mem};
-        printf \\n"INFO: copying the EXT4 $str to the USB, wait... "\\n\\n
-        ddsync errexit if=${mem}/${ext4img} bs=1M of=/dev/${dev}2
+        do_mount_tmpfs_ext4img "$str" seek=$[IMGSIZE-16] count=16 conv=sparse
+        copy_core_files_to_dst ${mem}; umount ${mem}; sync ${mem}/${ext4img}
+        printf "\\nINFO: copying the EXT4 $str to the USB, wait... "\\n\\n
+        ddsync errexit if=${mem}/${ext4img} bs=1M of=/dev/${dev}2 conv=sparse
         printf \\n"INFO: short waiting (pid:$umdstpid) for the VFAT unmount, wait... "\\n
         wait $umdstpid ||: #| $time cat
     else
@@ -589,9 +595,10 @@ else # ----------------------------------------------------------------- VFAT --
     str="usrdata"
     if [ ${AVAIL_MEMORY} -gt 64 ]; then #RAF: 16M is the journal size, then x4
         printf \\n"INFO: creating the EXT4 $str filesystem in the MEM ... "
-        timereal "do_mount_tmpfs_ext4img '$str' seek=$[64-16] count=16 && umount ${mem}"
-        printf \\n"INFO: copying the EXT4 $str to the USB, wait... "\\n\\n
-        ddsync errexit if=${mem}/${ext4img} bs=1M of=/dev/${dev}2
+        do_mount_tmpfs_ext4img "$str" seek=$[64-16] count=16 conv=sparse
+        umount ${mem}
+        printf "INFO: copying the EXT4 $str to the USB, wait... "\\n\\n
+        ddsync errexit if=${mem}/${ext4img} bs=1M of=/dev/${dev}2 conv=sparse
         printf \\n"INFO: loOng WAITING (pid:$umdstpid) for the VFAT unmount, wait... "\\n
         wait $umdstpid ||: #| $time cat
     else
@@ -636,7 +643,7 @@ timereal flush_umount_device
 
 printf \\n"INFO: resizing EXT4 filesystem to fill the partition ... "
 timereal "
-    #fsck -yf /dev/${dev}2
+    fsck -yf /dev/${dev}2
     resize2fs /dev/${dev}2
 " 2>/dev/null
 echo
