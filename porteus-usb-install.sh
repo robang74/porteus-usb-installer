@@ -122,8 +122,8 @@ function agree() {
 function waitdev() {
     local i
     for i in $(seq 1 100); do
-        partprobe
         sleep 0.1
+        partprobe
         if grep -q " $1$" /proc/partitions; then
             test -b /dev/$1
             return $?
@@ -135,7 +135,8 @@ function waitdev() {
 
 function make4fs() {
     local lbl=$1 dev=$2; shift 2
-    mkfs.ext4 -L "$lbl" ${make_ext4fs_options} -F $dev "$@"
+    { mkfs.ext4 -L "$lbl" ${make_ext4fs_options} -F $dev "$@" || errexit; } \
+        2>&1 | grep -v "^mke2fs [0-9.]\+ (" ||:
 }
 
 scsi_str=""; scsi_dev="";
@@ -176,13 +177,20 @@ function check_dmsg_for_last_attached_scsi() {
     scsi_str=""; scsi_dev=""         # consumer
 }
 
+time='time -freal:%es\n'
+
 function timereal() {
-    local time='time -freal:%es\n'
+    local time=${time:-time -freal:%es\n}
     ( eval "${@:-false}" || echo "real:error($?)" )  \
          | $time cat 2>&1 | grep -e "real:."
 }
 
-function partxy() { partx /dev/${dev} 2>/dev/null || partprobe; }
+function umount_all() {
+    local ret=0 i; for i in 1 2 3; do
+        umount ${src} ${dst} ${mem} /dev/${dev}* ||:
+    done 2>&1 | grep -v ": not mounted" || ret=$?
+    test $ret -ne 0
+}
 
 ################################################################################
 
@@ -301,7 +309,7 @@ redir="/dev/null"; isdevel && redir="/dev/stdout"
 
 ################################################################################
 
-trap 'for i in $src $dst $dst; do umount $i 2>/dev/null||:; done &' EXIT
+trap 'umount_all &' EXIT
 
 # ---------------------------------------------------------------------- FUNC --
 
@@ -322,7 +330,9 @@ function devflush() {
 }
 
 function ddsync() {
-    local alt=$1; shift; { dd "$@" oflag=dsync 2>&1 || $1; }| grep -v "records"
+    local alt=$1; shift;
+    { dd "$@" oflag=dsync 2>&1 || $1; }|\
+        grep -v "records" ||:
 }
 
 function smart_make_ext4() {
@@ -330,21 +340,22 @@ function smart_make_ext4() {
     # declare -i ng max=512 # RAF, TODO: 32 but differentiate 2.0 from 3.0, helps
     # let ng=($(get_diskpart_size)/2048)/1024
     # if [ $ng -ge $max -a "$journal" == "yes" ]; then
-    printf \\n\\n
-    if false; then
+    echo
+    if ! is_ext4_install; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
+        printf "INFO: journaling INIT, will be added WHILE copying ... "
         opts="${make_ext4fs_notlazy} -J size=16"
+        journal="no"
     else
-        printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
+        printf "INFO: journaling SKIP, will be added AFTER copying ... "
     fi
-    waitdev ${dev}2
-    make4fs "$1" /dev/${dev}2 $opts
+    timereal make4fs "$1" $2 $opts
+    echo
 }
 
 function mkdir_guestmp_dirs() {
     test -d "$1" || return 1
-    mkdir $1/guest $1/tmp
+    mkdir -p $1/guest $1/tmp
     chown 1000.1000 $1/guest $1/tmp
     chmod a+wrx $1/tmp
 }
@@ -354,11 +365,26 @@ function new_disk_id() {
     echo "x_i_0x${diskid}_r_w" | tr '_' '\n' | fdisk $1 >/dev/null ||:
 }
 
+function get_avail_mem() {
+    echo $(free -m | sed -ne "s/Mem:.* \([0-9]\+\)/\\1/p")
+    return $?
+#   local ms="MemAvailable"
+#   declare -i mbmem=$(sed -ne "s/$ms:.* \([0-9]\+\) kB/\\1/p" /proc/meminfo)
+#   let mbmem/=1024; echo $mbmem; return 0
+}
+
+function diskflush_partporbe() { devflush; sleep 0.25; partprobe; }
+
+function dofdisk() { 
+    { echo "${1}w" | tr _ '\n' | fdisk $2 || errexit; } >$redir 2>&1
+}
+
 # ------------------------------------------------------------------------------
 # RAF: TODO: here is better to use mktemp, instead
 #
 dst="/tmp/usb"
 src="/tmp/iso"
+mem="/tmp/mem"
 
 printf \\n"INFO: wake-up the chosen device and rescan the partitions, wait..."\\n
 eject -t /dev/${dev}  # RAF: give the device a wake-up, just in case
@@ -394,14 +420,16 @@ fi
 sync;sync;sync
 
 # Clear previous failed runs, eventually
-umount ${src} ${dst} 2>/dev/null || true
-umount /dev/${dev}* 2>/dev/null || true 
+umount_all
 echo
 if mount | grep /dev/${dev}; then
     perr \\n"ERROR: device /dev/${dev} is busy, abort!"\\n
     errexit
 fi
-mkdir -p ${dst} ${src}
+mkdir -p ${dst} ${src} ${mem}
+
+declare -i AVAIL_MEMORY=$(get_avail_mem) IMGSIZE=0
+test ${AVAIL_MEMORY} -gt 800 && IMGSIZE=700
 
 # Keep the time from here #_____________________________________________________
 
@@ -424,8 +452,6 @@ bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
     if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
     ddsync : if=/dev/zero bs=$bs count=1 of=$i
 done | grep . || echo "nothing to do"
-#devflush; partprobe
-#eject ${dev}; sleep 0.25; eject -t /dev/${dev}
 
 # Write MBR and essential partition table #_____________________________________
 
@@ -433,23 +459,21 @@ printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\
 mount -t tmpfs tmpfs ${dst}
 zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
 ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
-devflush; waitdev ${dev}1; rm -f ${dst}/mbr.ing
-echo
+diskflush_partporbe; waitdev ${dev}1; rm -f ${dst}/mbr.ing
 
-str="porteus"
+# Write EXT4 partition #________________________________________________________
+
 if is_ext4_install; then # --------------------------------------------- EXT4 --
-    echo "d_n_p_1_ _+16M_t_7_a_n_p_2_ _+1G_w" |\
-        tr _ '\n' | fdisk /dev/${dev} >$redir
-    printf "INFO: writing creating EXT4 $str filesystem, wait..."
-    $time smart_make_ext4 "$str"
-else # ----------------------------------------------------------------- VFAT --    
-    printf "INFO: writing creating VFAT $str filesystem ... "
-    timereal mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1
-    echo "n_p_2_ _+1G_w" | tr _ '\n' | fdisk /dev/${dev} >$redir
-    str="usrdata"
-    printf \\n"INFO: writing creating EXT4 $str filesystem, wait..."
-    $time smart_make_ext4 "$str"
-fi #2>&1 >$redir # --------------------------------------------------------------
+    dofdisk "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_" /dev/${dev}
+    diskflush_partporbe; waitdev ${dev}2
+    smart_make_ext4 "porteus" /dev/${dev}2
+else # ----------------------------------------------------------------- VFAT --
+    dofdisk "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_" /dev/${dev}
+    diskflush_partporbe; waitdev ${dev}2
+    smart_make_ext4 "usrdata" /dev/${dev}2
+fi #----------------------------------------------------------------------------
+
+# Write VFAT partition #________________________________________________________
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set -x
@@ -462,6 +486,9 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     mount -o loop ${dst}/vfat.img ${dst}
     #set +x
 else # ----------------------------------------------------------------- VFAT --
+    str="porteus"
+    printf "INFO: writing creating VFAT $str filesystem ... "
+    timereal mkfs.vfat -a -F32 -n "${str^^}" /dev/${dev}1
     printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
     devflush 1 ; waitdev ${dev}1
     mount -o async,noatime /dev/${dev}1 ${dst}
@@ -517,7 +544,7 @@ if [ -n "${bsi}" ]; then
 fi
 
 # Unmount source and eject USB device #_________________________________________
-set +xe
+set +e
 
 function flush_umount_device() {
     local i; 
@@ -530,7 +557,7 @@ function flush_umount_device() {
         nice -19 sync -f ${dst}/*.txt 2>/dev/null &
         devflush 1; umount /dev/${dev}1 
         devflush 2; umount /dev/${dev}2
-        wait
+        umount_all ||:; wait
 
         for i in ${dst} ${src} /dev/${dev}?; do
             while mount | grep -wq $i; do
@@ -551,14 +578,16 @@ if [ "$journal" == "yes" ]; then
     timereal tune2fs -U random -O fast_commit -J size=16 /dev/${dev}2
 fi
 
-printf \\n"INFO: resizing EXT4 data partition to fit the whole disk ... "
-echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
-timereal "
-waitdev ${dev}2 
-fsck -yf /dev/${dev}2
-resize2fs /dev/${dev}2
-" 2>/dev/null
-echo
+if false; then
+    printf \\n"INFO: resizing EXT4 data partition to fit the whole disk ... "
+    echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
+    timereal "
+        waitdev ${dev}2 
+        fsck -yf /dev/${dev}2
+        resize2fs /dev/${dev}2
+    " 2>/dev/null
+    echo
+fi
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
