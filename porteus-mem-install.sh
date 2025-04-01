@@ -184,8 +184,6 @@ function timereal() {
          | $time cat 2>&1 | grep -e "real:."
 }
 
-function partxy() { partx /dev/${dev} 2>/dev/null || partprobe; }
-
 function umount_all() {
     local ret=0 i; for i in 1 2 3; do
         umount ${src} ${dst} ${mem} /dev/${dev}* ||:
@@ -344,6 +342,7 @@ function smart_make_ext4() {
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
         printf "INFO: journaling INIT, will be added WHILE copying, wait..."\\n\\n
         opts="${make_ext4fs_notlazy} -J size=16"
+        journal="no"
     else
         printf "INFO: journaling SKIP, will be added AFTER copying, wait..."\\n\\n
     fi
@@ -363,12 +362,19 @@ function new_disk_id() {
     echo "x_i_0x${diskid}_r_w" | tr '_' '\n' | fdisk $1 >/dev/null ||:
 }
 
-function get_avail_mem() {    
+function get_avail_mem() {
     echo $(free -m | sed -ne "s/Mem:.* \([0-9]\+\)/\\1/p")
     return $?
 #   local ms="MemAvailable"
 #   declare -i mbmem=$(sed -ne "s/$ms:.* \([0-9]\+\) kB/\\1/p" /proc/meminfo)
 #   let mbmem/=1024; echo $mbmem; return 0
+}
+
+function diskflush_partporbe() { devflush; sleep 0.25; partprobe; }
+
+function update_partition_table() { 
+    echo "${1}w" | tr _ '\n' | fdisk /dev/${dev} >$redir; 
+    diskflush_partporbe
 }
 
 # ------------------------------------------------------------------------------
@@ -444,8 +450,6 @@ bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
     if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
     ddsync : if=/dev/zero bs=$bs count=1 of=$i
 done | grep . || echo "nothing to do"
-#devflush; partprobe
-#eject ${dev}; sleep 0.25; eject -t /dev/${dev}
 
 # Write MBR and essential partition table #_____________________________________
 
@@ -456,15 +460,9 @@ ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
 devflush; waitdev ${dev}1; rm -f ${dst}/mbr.ing
 echo
 
-function diskflush_partporbe() { devflush; sleep 0.25; partprobe; }
-function update_partition_table() { 
-    echo "${1}w" | tr _ '\n' | fdisk /dev/${dev} >$redir; 
-    diskflush_partporbe
-}
-
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     str="EFIBOOT"
-    update_partition_table "d_n_p_1_ _+16M_t_7_a_n_p_2_ _ _"
+    update_partition_table "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_"
     declare -i nb=$(get_diskpart_size 1)
     printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
     if ! timereal "dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none;
@@ -474,7 +472,7 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     mount | grep -qw ${dst}/vfat.img || errexit
 else # ----------------------------------------------------------------- VFAT --
     str="porteus"
-    update_partition_table "d_n_p_1_ _+700M_t_7_a_n_p_2_ _ _"
+    update_partition_table "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_"
     printf "INFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "PORTEUS" /dev/${dev}1
     printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
@@ -489,7 +487,7 @@ function cpvfatext4() {
 }
 
 function copy_core_files_to_dst() {
-    local dst=$1
+    local dst=$1 dev=
     printf \\n"INFO: copying Porteus core system files ... "
     timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
     if [ -n "${bsi}" ]; then
@@ -499,6 +497,8 @@ function copy_core_files_to_dst() {
         chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
         printf \\n"INFO: custom background '${bgi}' copied"\\n
     fi
+    dev=$(df | sed -ne "s,\(/dev/loop[0-9]\+\) .*${dst},\\1,p" ||:)
+    test -b "$dev" && blockdev --flushbufs ${dev} ||:
 }
 
 function copy_boot_files_to_dst() {
@@ -634,19 +634,16 @@ function flush_umount_device() {
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
+printf \\n"INFO: resizing EXT4 filesystem to fill the partition ... "
+timereal "
+    #fsck -yf /dev/${dev}2
+    resize2fs /dev/${dev}2
+" 2>/dev/null
+echo
 if [ "$journal" == "yes" ]; then
     printf \\n"INFO: creating the journal and then checking ... "
     timereal tune2fs -U random -O fast_commit -J size=16 /dev/${dev}2
 fi
-
-printf \\n"INFO: resizing EXT4 data partition to fit the whole disk ... "
-echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
-timereal "
-waitdev ${dev}2 
-fsck -yf /dev/${dev}2
-resize2fs /dev/${dev}2
-" 2>/dev/null
-echo
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
