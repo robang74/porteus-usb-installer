@@ -373,8 +373,6 @@ function get_avail_mem() {
 #   let mbmem/=1024; echo $mbmem; return 0
 }
 
-function diskflush_partporbe() { devflush; sleep 0.25; partprobe; }
-
 function dofdisk() { 
     { echo "${1}w" | tr _ '\n' | fdisk $2 || errexit; } >$redir 2>&1
 }
@@ -459,17 +457,17 @@ printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\
 mount -t tmpfs tmpfs ${dst}
 zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
 ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
-diskflush_partporbe; waitdev ${dev}1; rm -f ${dst}/mbr.ing
+devflush; waitdev ${dev}1; rm -f ${dst}/mbr.ing
 
 # Write EXT4 partition #________________________________________________________
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     dofdisk "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_" /dev/${dev}
-    diskflush_partporbe; waitdev ${dev}2
+    devflush; waitdev ${dev}2
     smart_make_ext4 "porteus" /dev/${dev}2
 else # ----------------------------------------------------------------- VFAT --
     dofdisk "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_" /dev/${dev}
-    diskflush_partporbe; waitdev ${dev}2
+    devflush; waitdev ${dev}2
     smart_make_ext4 "usrdata" /dev/${dev}2
 fi #----------------------------------------------------------------------------
 
