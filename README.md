@@ -46,7 +46,7 @@ Device     Boot   Start     End Sectors  Size Id Type
 /dev/sda1  *       2048   34815   32768   16M  7 HPFS/NTFS/exFAT
 /dev/sda2         34816 3885055 3850240  1.8G 83 Linux
 
-INFO: booting in RAM by EXT4 ubstick, to proceed with an installation.
+INFO: boot by EXT4 ubstick, and to proceed with an installation type:
 
 dd if=/dev/sdb bs=1M count=2k of=/dev/sda status=progress oflag=dsync
 
