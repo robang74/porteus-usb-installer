@@ -31,20 +31,28 @@ The v0.2.0 has been reported that it works also for [PorteuX](https://github.com
 
 </div>
 
-To understand the difference between the two variants, the LIVE is the most similar to the original Porteus while the EXT4 allows one to install a system from scratch. The timings of these two examples are referring to an USB 2.0 usbstick 64GB paid €3.11 on Temu:
+To understand the difference between the two variants, the LIVE is the most similar to the original Porteus while the EXT4 allows one to install a system from scratch. The timings of these two examples are referring to Porteus v5.1 (alpha2) an USB 2.0 usbstick 64GB paid €3.11 on Temu:
 
 ```
-INFO: Creation LIVE usbstick completed in 33 seconds.
+INFO: Creation LIVE usbstick completed in 36 seconds.
 
 Device     Boot   Start     End Sectors  Size Id Type
 /dev/sda1  *       2048 2459647 2457600  1.2G  7 HPFS/NTFS/exFAT
 /dev/sda2       2459648 3893247 1433600  700M 83 Linux
 
-INFO: Creation EXT4 usbstick completed in 46 seconds.
+Filesystem        Size  Used Avail Use% Mounted on
+/dev/sda1          16M   13M  3.5M  79% /tmp/usb1
+/dev/sda2         1.8G  475M  1.3G  28% /tmp/usb2
+
+INFO: Creation EXT4 usbstick completed in 37 seconds.
 
 Device     Boot   Start     End Sectors  Size Id Type
 /dev/sda1  *       2048   34815   32768   16M  7 HPFS/NTFS/exFAT
 /dev/sda2         34816 3885055 3850240  1.8G 83 Linux
+
+Filesystem        Size  Used Avail Use% Mounted on
+/dev/sda1         1.2G  616M  583M  52% /tmp/usb1
+/dev/sda2         672M   28K  623M   1% /tmp/usb2
 
 INFO: boot by EXT4 ubstick, and to proceed with an installation type:
 
