@@ -188,8 +188,7 @@ function timereal() {
 function umount_all() {
     local ret=0 i; for i in 1 2 3; do
         umount ${src} ${dst} ${mem} /dev/${dev}* ||:
-    done 2>&1 | grep -v ": not mounted" || ret=$?
-    test $ret -ne 0
+    done 2>/dev/null
 }
 
 ################################################################################
