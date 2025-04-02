@@ -67,7 +67,7 @@ Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and runnin
 
 <div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div><br>
 
-How long does it take to prepare such a USB 2.0 stick? Less than 120 seconds (since v0.3.3, less than 40s) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
+How long does it take to prepare such a USB 2.0 stick? Less than 40 seconds (since v0.3.x) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
 
 #### About other buses/ports
 
@@ -161,7 +161,7 @@ This little script downloads and immediately puts in execution the network insta
 
 ```
 mkdir -p usbtest; cd usbtest
-tagver="v0.3.3" # To replace with the latest available in tags
+tagver="v0.3.4" # To replace with the latest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"

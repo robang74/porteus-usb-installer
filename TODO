@@ -1,19 +1,24 @@
 # TODO
 
 - check for the faster Porteus repository only when downloading the ISO.
-- test to deal with EXT4 and sync/umount in background while writing VFAT.
-- test a different order of umount compared with the current (v0.3.1).
-- write the VFAT in a tmpfs loop and dd in its partition as speed test.
-- check about swapability and add "noswap", which is a performance killer.
-- evaluate to add zram swap for those case can make a difference.
 - ask for selecting the best mirror ONLY when downloading ISO.
-- download ALL the SHA256 checksum files and check for coherence among them.
-- include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
+- check for coherence among ALL the SHA256 checksum files.
 - if many ISO files have been found, let the user choose among them.
+- evaluate to add zram swap for those case can make a difference.
+    - rc.local additions about swapability (60) and set it to five.
+- include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
+    - .xprofile/session should deal with the DVI-VGA adapters
 
+# DONE
+
+v test to deal with EXT4 and sync/umount in background while writing VFAT.
+v test a different order of umount compared with the current (v0.3.1).
+v write the VFAT in a tmpfs loop and dd in its partition as speed test.
+v add "noswap", because swap is a performance killer.
+v download ALL the SHA256 checksum files
 
 # DEVEL
 
-- short link for the script on the last tags v0.3.3: tinyurl.com/2atj2ubq
+- short link for the script on the last tags v0.3.4: tinyurl.com/22kneybo
 - short link for the script on the main head: tinyurl.com/2bn89qqo (RISKY!!)
 
