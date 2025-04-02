@@ -30,6 +30,7 @@ journal="yes"
 blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
+guest_owner="1000:100" # guest:users
 make_ext4_nojournal="-O ^has_journal"
 make_ext4fs_options="-DO fast_commit"
 make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
@@ -355,7 +356,8 @@ function smart_make_ext4() {
 function mkdir_guestmp_dirs() {
     test -d "$1" || return 1
     mkdir -p $1/guest $1/tmp
-    chown 1000:100 $1/guest $1/tmp
+    chown ${guest_owner} $1/guest $1/tmp
+    is_ext4_install || rmdir $1/guest
     chmod a+wrx $1/tmp
 }
 
@@ -532,12 +534,21 @@ fi # ---------------------------------------------------------------------------
 
 printf \\n"INFO: copying Porteus core system files ... "
 timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
-if [ -n "${bsi}" ]; then
+if [ -r "${bsi}" ]; then
     lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
     printf \\n"INFO: custom background '${bgi}' copied"\\n
+fi
+lpd=${dst}/porteus/changes/home/guest/
+mkdir -p ${lpd}; chown 1000:100 ${lpd}
+fle=$(search xprofile ||:)
+if [ -r "$fle" ]; then
+    lpd=${lpd}/.xprofile
+    cp ${fle} ${lpd}
+    chmod a+x ${lpd}
+    chown ${guest_owner} ${lpd}
 fi
 
 # Unmount source and eject USB device #_________________________________________
