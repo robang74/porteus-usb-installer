@@ -353,7 +353,7 @@ function smart_make_ext4() {
 function mkdir_guestmp_dirs() {
     test -d "$1" || return 1
     mkdir $1/guest $1/tmp
-    chown 1000.1000 $1/guest $1/tmp
+    chown 1000:100 $1/guest $1/tmp
     chmod a+wrx $1/tmp
 }
 
