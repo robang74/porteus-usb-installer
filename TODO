@@ -6,8 +6,6 @@
 - if many ISO files have been found, let the user choose among them.
 - evaluate to add zram swap for those case can make a difference.
     - rc.local additions about swapability (60) and set it to five.
-- include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
-    - .xprofile/session should deal with the DVI-VGA adapters
 
 # DONE
 
@@ -16,6 +14,8 @@ v test a different order of umount compared with the current (v0.3.1).
 v write the VFAT in a tmpfs loop and dd in its partition as speed test.
 v add "noswap", because swap is a performance killer.
 v download ALL the SHA256 checksum files
+v include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
+    v .xprofile/session should deal with the DVI-VGA adapters
 
 # DEVEL
 
