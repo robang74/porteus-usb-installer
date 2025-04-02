@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# (C) 2025, Roberto A. Foglietta <roberto.foglietta@gmail.com> - 3-clause BSD
+#
+################################################################################
+
+mntr=$(xrandr --listactivemonitors | sed -ne 's, *0: .* \([^ ]\+\)$,\1,p')
+line=$(cvt 1280 1024 75 | sed -ne 's/Modeline ".*" //p')
+mode="1280x1024"
+
+xrandr --newmode $mode $line
+xrandr --addmode $mntr $mode
+
+# RAF: let the users choose this resolution, if they need to
+# xrandr --output $mntr --mode $mode
