@@ -5,11 +5,16 @@
 ################################################################################
 
 mntr=$(xrandr --listactivemonitors | sed -ne 's, *0: .* \([^ ]\+\)$,\1,p')
-line=$(cvt 1280 1024 75 | sed -ne 's/Modeline ".*" //p')
-mode="1280x1024"
+if echo $mntr | grep -q "DVI"; then
+    line=$(cvt 1280 1024 75 | sed -ne 's/Modeline ".*" //p')
+    mode="1280x1024"
 
-xrandr --newmode $mode $line
-xrandr --addmode $mntr $mode
+    xrandr --newmode $mode $line
+    xrandr --addmode $mntr $mode
 
-# RAF: let the users choose this resolution, if they need to
-# xrandr --output $mntr --mode $mode
+    # RAF: let the users choose this resolution, if they need to
+    # xrandr --output $mntr --mode $mode
+fi
+
+# APPEND HERE BELOW YOUR OWN SETTINGS ##########################################
+
