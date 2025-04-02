@@ -353,12 +353,13 @@ function smart_make_ext4() {
     echo
 }
 
-function mkdir_guestmp_dirs() {
-    test -d "$1" || return 1
-    mkdir -p $1/guest $1/tmp
-    chown ${guest_owner} $1/guest $1/tmp
-    is_ext4_install || rmdir $1/guest
-    chmod a+wrx $1/tmp
+function mk_tmp_dir() {
+    local d2=${dst}2 d1=${dst}1
+    mkdir -p ${d1} ${d2}
+    mount /dev/${dev}1 ${d1}
+    mount /dev/${dev}2 ${d2}
+    mkdir -p ${d2}/tmp
+    chmod a+wrx ${d2}/tmp
 }
 
 function new_disk_id() {
@@ -512,6 +513,16 @@ if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     printf \\n"INFO: custom boot screen background '${bsi}' copied"\\n
 fi
 
+function xprofile_copy() {
+    local lpd fld fle=$(search xprofile ||:)
+    if [ -r "$fle" ]; then
+        lpd=$1/home/guest; fld=${lpd}/.xprofile
+        mkdir -p ${lpd}; cp -f ${fle} ${fld}
+        chmod a+x ${fld}; chown -R ${guest_owner} ${lpd} 2>/dev/null ||:
+        printf \\n"INFO: custom .xprofile settings for DVI-VGA adapters copied"\\n
+    fi
+}
+
 # Creating persistence loop filesystem or umount #______________________________
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
@@ -522,11 +533,14 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
-    printf \\n"INFO: writing the EXT4 persistence file to changes, wait..."\\n\\n
+    printf \\n"INFO: writing the EXT4 persistence file to changes ... "
+    timereal "
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    make4fs 'changes' ${sve} ${make_ext4_nojournal} ${make_ext4fs_lazyone} >$redir
+    opts='${make_ext4_nojournal} ${make_ext4fs_lazyone}'
+    make4fs 'changes' ${sve} $opts
+"
     d=${dst}/porteus; mkdir -p $d; str="cp -f ${sve} $d"
-    printf "$str ... "; timereal "$str"; rm -f ${sve}
+    printf "$str ... "; timereal "$str";rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
 fi # ---------------------------------------------------------------------------
 
@@ -534,22 +548,14 @@ fi # ---------------------------------------------------------------------------
 
 printf \\n"INFO: copying Porteus core system files ... "
 timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
+lpd=${dst}/porteus/rootcopy
 if [ -r "${bsi}" ]; then
-    lpd=${dst}/porteus/rootcopy
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
     printf \\n"INFO: custom background '${bgi}' copied"\\n
 fi
-lpd=${dst}/porteus/changes/home/guest/
-mkdir -p ${lpd}; chown 1000:100 ${lpd}
-fle=$(search xprofile ||:)
-if [ -r "$fle" ]; then
-    lpd=${lpd}/.xprofile
-    cp ${fle} ${lpd}
-    chmod a+x ${lpd}
-    chown ${guest_owner} ${lpd}
-fi
+xprofile_copy ${lpd}
 
 # Unmount source and eject USB device #_________________________________________
 set +e
@@ -581,9 +587,16 @@ function flush_umount_device() {
 printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
+function make_tune2fs_journal() {
+    local d=/dev/${dev}2
+    { fsck -yf $d || fsck -yf $d ||:; } \
+        2>&1 | grep -v "^e2fsck [0-9.]\+ (" ||:
+    tune2fs -U random -O fast_commit -J size=16 $d
+}
+
 if [ "$journal" == "yes" ]; then
     printf \\n"INFO: creating the journal and then checking ... "
-    timereal tune2fs -U random -O fast_commit -J size=16 /dev/${dev}2
+    timereal make_tune2fs_journal
 fi
 
 if false; then
@@ -594,8 +607,8 @@ if false; then
         fsck -yf /dev/${dev}2
         resize2fs /dev/${dev}2
     " 2>/dev/null
-    echo
 fi
+echo
 for i in 1 2; do
     for n in 1 2 3; do
         fsck -yf /dev/${dev}$i && break
@@ -606,10 +619,7 @@ done
 
 # Say goodbye and exit #________________________________________________________
 
-mkdir -p   ${dst}1 ${dst}2
-mount /dev/${dev}1 ${dst}1
-mount /dev/${dev}2 ${dst}2
-mkdir_guestmp_dirs ${dst}2
+mk_tmp_dir
 udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
 flush_umount_device
 
