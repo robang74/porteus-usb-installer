@@ -343,11 +343,11 @@ function smart_make_ext4() {
     echo
     if ! is_ext4_install; then
         #perr "INFO: usbstick size $ng GiB < $max Gib, init journal with mkfs."\\n
-        printf "INFO: journaling INIT, will be added WHILE copying ... "
+        print_dtms "" "INFO: journaling INIT, will be added WHILE copying ... "
         opts="${make_ext4fs_notlazy} -J size=16"
         journal="no"
     else
-        printf "INFO: journaling SKIP, will be added AFTER copying ... "
+        print_dtms "" "INFO: journaling SKIP, will be added AFTER copying ... "
     fi
     timereal make4fs "$1" $2 $opts
     echo
@@ -413,11 +413,15 @@ fi
 
 if [ -n "$sync_pid" -a -e /proc/$sync_pid ]; then
     perr \\n"WARNING: system busy, waiting for sync (pid:$sync_pid) returns..."\\n
-    wait $sync_pid
+    wait $sync_pid ||:
 else
     perr \\n"INFO: before proceding sync the system I/O pending operations, wait..."\\n
 fi
 sync;sync;sync
+#set +e -x
+str=$(lsof /dev/${dev}* 2>/dev/null ||:)
+test -n "$str" && printf \\n"$str"\\n
+#set +e -x
 
 # Clear previous failed runs, eventually
 umount_all
@@ -433,18 +437,23 @@ test ${AVAIL_MEMORY} -gt 800 && IMGSIZE=700
 
 # Keep the time from here #_____________________________________________________
 
-declare -i tms=$(date +%s%N)
+print_dtms() {
+    local nl=$1; shift
+    let dtms=($(date +%s%N)-$tms+5000000)/10000000 ||:
+    printf "${nl}>[%3d.%02d] $@" $[dtms/100] $[dtms%100]
+}
+declare -i nsec dtms tms=$(date +%s%N)
 
 # RAF: zeroing the filesystem signatures prevents automounting #________________
 
-printf "INFO: invalidating all previous filesystem signatures"
+print_dtms "" "INFO: invalidating all previous filesystem signatures"
 if which wipefs >/dev/null; then
     printf " ... "
     { timereal "
         wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null ||:; 
         #ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
     } 2>&1 | grep -v 'offset 0x' ||:
-    printf "INFO: invalidating all previous partitions"
+    print_dtms "" "INFO: invalidating all previous partitions"
 fi
 printf ", wait..."\\n\\n
 bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
@@ -455,7 +464,7 @@ done | grep . || echo "nothing to do"
 
 # Write MBR and essential partition table #_____________________________________
 
-printf \\n"INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
+print_dtms \\n "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
 mount -t tmpfs tmpfs ${dst}
 zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
 ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
@@ -467,10 +476,12 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     dofdisk "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_" /dev/${dev}
     devflush; waitdev ${dev}2
     smart_make_ext4 "porteus" /dev/${dev}2
+    usb_type="EXT4/INST"
 else # ----------------------------------------------------------------- VFAT --
     dofdisk "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_" /dev/${dev}
     devflush; waitdev ${dev}2
     smart_make_ext4 "usrdata" /dev/${dev}2
+    usb_type="VFAT/LIVE"
 fi #----------------------------------------------------------------------------
 
 # Write VFAT partition #________________________________________________________
@@ -478,7 +489,7 @@ fi #----------------------------------------------------------------------------
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set -x
     declare -i nb=$(get_diskpart_size 1)
-    printf "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
+    print_dtms "" "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
     dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
     if ! timereal mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
         rm -f ${dst}/vfat.img; umount ${dst}; errexit
@@ -487,9 +498,9 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     #set +x
 else # ----------------------------------------------------------------- VFAT --
     str="porteus"
-    printf "INFO: writing creating VFAT $str filesystem ... "
+    print_dtms "" "INFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "${str^^}" /dev/${dev}1
-    printf "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
+    print_dtms "" "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
     devflush 1 ; waitdev ${dev}1
     mount -o async,noatime /dev/${dev}1 ${dst}
     mount | grep -qw /dev/${dev}1 || errexit
@@ -503,14 +514,14 @@ function cpvfatext4() {
 }
 
 mount -o loop,ro ${iso} ${src} || errexit
-printf \\n"INFO: copying Porteus EFI/boot files from ISO file ... "
+print_dtms \\n "INFO: copying Porteus EFI/boot files from ISO file ... "
 timereal cpvfatext4 -arf ${src}/boot ${src}/EFI ${dst}
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
 echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
-    printf \\n"INFO: custom boot screen background '${bsi}' copied"\\n
+    print_dtms \\n "INFO: custom boot screen background '${bsi}' copied"\\n
 fi
 
 function xprofile_copy() {
@@ -519,7 +530,7 @@ function xprofile_copy() {
         lpd=$1/home/guest; fld=${lpd}/.xprofile
         mkdir -p ${lpd}; cp -f ${fle} ${fld}
         chmod a+x ${fld}; chown -R ${guest_owner} ${lpd} 2>/dev/null ||:
-        printf \\n"INFO: custom .xprofile settings for DVI-VGA adapters copied"\\n
+        print_dtms \\n "INFO: custom .xprofile settings for DVI-VGA adapters copied"\\n
     fi
 }
 
@@ -527,33 +538,38 @@ function xprofile_copy() {
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
-    printf \\n"INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
+    print_dtms \\n "INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
     ddsync errexit if=${dst}/vfat.img bs=1M of=/dev/${dev}1
     devflush 1
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
-    printf \\n"INFO: writing the EXT4 persistence file to changes ... "
+    print_dtms \\n "INFO: writing the EXT4 persistence file to changes ... "
     timereal "
     dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
     opts='${make_ext4_nojournal} ${make_ext4fs_lazyone}'
     make4fs 'changes' ${sve} $opts
+    d=${dst}/porteus; mkdir -p $d
+    cp -f ${sve} $d; rm -f ${sve}
 "
-    d=${dst}/porteus; mkdir -p $d; str="cp -f ${sve} $d"
-    printf "$str ... "; timereal "$str";rm -f ${sve}
     # RAF: using cp instead of mv because it handles the sparse
+if false; then
+    d=${dst}/porteus; mkdir -p $d
+    str="cp -f ${sve} $d"; printf "$str ... "
+    timereal "$str"; rm -f ${sve}
+fi
 fi # ---------------------------------------------------------------------------
 
 # Copying Porteus system and modules from ISO file#_____________________________
 
-printf \\n"INFO: copying Porteus core system files ... "
+print_dtms \\n "INFO: copying Porteus core system files ... "
 timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
 lpd=${dst}/porteus/rootcopy
 if [ -r "${bsi}" ]; then
     mkdir -p ${lpd}/usr/share/wallpapers/
     cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
     chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    printf \\n"INFO: custom background '${bgi}' copied"\\n
+    print_dtms \\n "INFO: custom background '${bgi}' copied"\\n
 fi
 xprofile_copy ${lpd}
 
@@ -584,7 +600,7 @@ function flush_umount_device() {
     { mount | grep /dev/${dev} && echo; }| sed -e "s/.\+/ERROR: &/" >&2
 }
 
-printf \\n"INFO: minute(s) long WAITING for the unmount synchronisation ... "
+print_dtms \\n "INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
 function make_tune2fs_journal() {
@@ -595,12 +611,12 @@ function make_tune2fs_journal() {
 }
 
 if [ "$journal" == "yes" ]; then
-    printf \\n"INFO: creating the journal and then checking ... "
+    print_dtms \\n "INFO: creating the journal and then checking ... "
     timereal make_tune2fs_journal
 fi
 
 if false; then
-    printf \\n"INFO: resizing EXT4 data partition to fit the whole disk ... "
+    print_dtms \\n "INFO: resizing EXT4 data partition to fit the whole disk ... "
     echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
     timereal "
         waitdev ${dev}2 
@@ -631,13 +647,11 @@ if [ "$DEVEL_ZEROING" == "1" ]; then
     devflush; partprobe
 fi
 
-while ! eject /dev/${dev}
-    do sleep 1; done
-let tms=($(date +%s%N)-$tms+500000000)/1000000000
-if is_ext4_install; then str="EXT4"; else str="LIVE"; fi
-printf "INFO: Creation $str usbstick completed in $tms seconds."\\n\\n
-echo "$udsc"; echo
-printf "DONE: Your bootable USB key ready to be removed safely."\\n\\n
+let nsec=($(date +%s%N)-$tms+500000000)/1000000000
+print_dtms "" "INFO: Creation $usb_type usbstick completed in $nsec seconds."\\n\\n
+echo "$udsc"; printf \\n"device ejecting, wait... "\\n\\n
+while ! eject /dev/${dev} 2>/dev/null; do sleep 1; printf .; done
+print_dtms "" "DONE: Your bootable USB key ready to be removed safely."\\n\\n
 for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
     tr -d '\0' | grep -q sleep360 && kill $i; done 2>/dev/null
 trap - EXIT
