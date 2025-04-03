@@ -121,16 +121,16 @@ function agree() {
 }
 
 function waitdev() {
-    local i
+    local i d=${dev}$1
     for i in $(seq 1 100); do
         sleep 0.1
         partprobe
-        if grep -q " $1$" /proc/partitions; then
-            test -b /dev/$1
+        if grep -q " $d$" /proc/partitions; then
+            test -b /dev/$d
             return $?
         fi; printf .
     done
-    perr \\n"ERROR: waitdev('$1') failed, abort!"\\n
+    perr \\n"ERROR: waitdev('$d') failed, abort!"\\n
     errexit
 }
 
@@ -418,10 +418,8 @@ else
     perr \\n"INFO: before proceding sync the system I/O pending operations, wait..."\\n
 fi
 sync;sync;sync
-#set +e -x
 str=$(lsof /dev/${dev}* 2>/dev/null ||:)
 test -n "$str" && printf \\n"$str"\\n
-#set +e -x
 
 # Clear previous failed runs, eventually
 umount_all
@@ -468,21 +466,23 @@ print_dtms \\n "INFO: writing the MBR and preparing essential partitions, wait..
 mount -t tmpfs tmpfs ${dst}
 zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
 ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
-devflush; waitdev ${dev}1; rm -f ${dst}/mbr.ing
+devflush; waitdev 1; rm -f ${dst}/mbr.ing
 
 # Write EXT4 partition #________________________________________________________
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     dofdisk "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_" /dev/${dev}
-    devflush; waitdev ${dev}2
+    devflush; waitdev 2
     smart_make_ext4 "porteus" /dev/${dev}2
     usb_type="EXT4/INST"
 else # ----------------------------------------------------------------- VFAT --
     dofdisk "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_" /dev/${dev}
-    devflush; waitdev ${dev}2
+    devflush; waitdev 2
     smart_make_ext4 "usrdata" /dev/${dev}2
     usb_type="VFAT/LIVE"
 fi #----------------------------------------------------------------------------
+
+waitdev 2; umount /dev/sda? 2>/dev/null ||:
 
 # Write VFAT partition #________________________________________________________
 
@@ -501,7 +501,7 @@ else # ----------------------------------------------------------------- VFAT --
     print_dtms "" "INFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "${str^^}" /dev/${dev}1
     print_dtms "" "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
-    devflush 1 ; waitdev ${dev}1
+    devflush 1 ; waitdev 1
     mount -o async,noatime /dev/${dev}1 ${dst}
     mount | grep -qw /dev/${dev}1 || errexit
 
@@ -536,6 +536,16 @@ function xprofile_copy() {
 
 # Creating persistence loop filesystem or umount #______________________________
 
+function create_and_copy_changes_loopfile() {
+    #echo; set -x
+    local d opts="${make_ext4_nojournal} ${make_ext4fs_lazyone}"
+    dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
+    make4fs 'changes' ${sve} $opts
+    d=${dst}/porteus; mkdir -p $d
+    cp -f ${sve} $d; rm -f ${sve}
+    #set +x
+}
+
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
     print_dtms \\n "INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
@@ -545,13 +555,7 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
     print_dtms \\n "INFO: writing the EXT4 persistence file to changes ... "
-    timereal "
-    dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
-    opts='${make_ext4_nojournal} ${make_ext4fs_lazyone}'
-    make4fs 'changes' ${sve} $opts
-    d=${dst}/porteus; mkdir -p $d
-    cp -f ${sve} $d; rm -f ${sve}
-"
+    timereal "create_and_copy_changes_loopfile"
     # RAF: using cp instead of mv because it handles the sparse
 if false; then
     d=${dst}/porteus; mkdir -p $d
@@ -600,13 +604,25 @@ function flush_umount_device() {
     { mount | grep /dev/${dev} && echo; }| sed -e "s/.\+/ERROR: &/" >&2
 }
 
+function enfore_allfs_checks() {
+    local i n op=$1
+    for i in 1 2; do
+        for n in 1 2 3; do
+            fsck -y$op /dev/${dev}$i && break
+            echo
+        done
+        echo
+        op=f
+    done
+}
+
 print_dtms \\n "INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
 function make_tune2fs_journal() {
     local d=/dev/${dev}2
-    { fsck -yf $d || fsck -yf $d ||:; } \
-        2>&1 | grep -v "^e2fsck [0-9.]\+ (" ||:
+    { fsck -yf $d || fsck -y $d || fsck -y $d ||:; } \
+        2>&1 | grep -v "^e2fsck [0-9.]\+ ("   ||:
     tune2fs -U random -O fast_commit -J size=16 $d
 }
 
@@ -618,20 +634,11 @@ fi
 if false; then
     print_dtms \\n "INFO: resizing EXT4 data partition to fit the whole disk ... "
     echo 'd_2_n_p_2_ _ _n_w' | tr '_' '\n' | fdisk /dev/${dev} >$redir 2>&1
-    timereal "
-        waitdev ${dev}2 
-        fsck -yf /dev/${dev}2
-        resize2fs /dev/${dev}2
-    " 2>/dev/null
+    d=/dev/${dev}2; timereal "waitdev 2; fsck -yf $d; resize2fs $d" 2>/dev/null
 fi
-echo
-for i in 1 2; do
-    for n in 1 2 3; do
-        fsck -yf /dev/${dev}$i && break
-        echo
-    done
-    echo
-done
+
+print_dtms \\n "INFO: enforcing filesystems consistency checks, wait..."\\n\\n
+enfore_allfs_checks
 
 # Say goodbye and exit #________________________________________________________
 
