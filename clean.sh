@@ -20,7 +20,8 @@ echo "launch dir: $dir"
 if [ -d "$store_dirn" ]; then
     cd "$store_dirn"
 fi
-echo "clean  dir: $PWD"
+cln=$PWD
+echo "clean  dir: $cln"
 echo
 for f in $mir $net; do
     for d in . $dir $wdr ..; do
@@ -33,5 +34,10 @@ for f in $mir $net; do
     done
 done
 test "$last" == "$net" && echo "done."
-{ printf "return dir: "; cd -; } >/dev/null
+cd .
+list=$(ls -1)
+if [ -n "$list" ]; then
+    printf "\nfiles left untouched in $(basename $cln)/:\n\n"
+    echo "$list" | sed -e "s/.*/    &/"
+fi
 echo

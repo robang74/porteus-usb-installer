@@ -145,17 +145,17 @@ elif [ "x$1" == "x--clean" ]; then #############################################
     while true; do
         # RAF: better use mktemp here
         rd="$d.$RANDOM"
-        test -d $rd || break
+        if [ ! -d $rd ]; then mkdir $rd && break; fi
         sleep 0.1
     done
     # RAF: this piece of code should be isolated, it can delete itself.
     (
-        mkdir $rd && mv -f $d/*.iso $d/*.ISO $rd 2>/dev/null ||:\
-             && rm -rf $d && mv $rd $d
-        isolist=$(ls -1t $d/*.iso $d/*.ISO 2>/dev/null ||:)
+        isolist=$(command ls -1t $d/*.{ISO,iso,xzm} 2>/dev/null ||:)       
         if [ -n "$isolist" ]; then
-            perr "INFO: the ISO image files are left untouched, do it manually"
+            mv -f $isolist $rd && rm -rf $d && mv $rd $d
+            perr "INFO: the ISO and .xzm files are left untouched, do it manually"
         else
+            rm -rf $d && mv $rd $d
             perr "done."
         fi
         errexit 0
