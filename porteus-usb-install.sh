@@ -331,7 +331,7 @@ function devflush() {
 
 function ddsync() {
     local alt=$1; shift;
-    { dd "$@" oflag=dsync 2>&1 || $1; }|\
+    { dd "$@" bs=1M oflag=dsync 2>&1 || $1; }|\
         grep -v "records" ||:
 }
 
@@ -447,26 +447,27 @@ declare -i nsec dtms tms=$(date +%s%N)
 print_dtms "" "INFO: invalidating all previous filesystem signatures"
 if which wipefs >/dev/null; then
     printf " ... "
-    { timereal "
-        wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null ||:; 
-        #ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}"; 
-    } 2>&1 | grep -v 'offset 0x' ||:
+    timereal "wipefs --all /dev/${dev}1 /dev/${dev}2 2>/dev/null ||:" \
+        2>&1 | grep -v 'offset 0x' ||:
     print_dtms "" "INFO: invalidating all previous partitions"
 fi
 printf ", wait..."\\n\\n
-bs="4M"; for i in /dev/${dev}?; do # "1M" /dev/${dev}; do
-    if [ "${i:0:1}" != "/" ]; then bs=$i; continue; fi
-    if [ ! -b $i ]; then test -f $i && rm -f $i; continue; fi
-    ddsync : if=/dev/zero bs=$bs count=1 of=$i
-done | grep . || echo "nothing to do"
+for i in /dev/${dev}1 /dev/${dev}2; do
+    if [ ! -b $i ]; then rm -f $i; continue; fi; printf "$i: "
+    dd if=/dev/zero bs=1M count=4 of=$i oflag=nonblock 2>&1
+done | grep -v "records" || echo "nothing to do."
+test -b /dev/${dev} && \
+    dd if=/dev/zero of=/dev/${dev} count=1 oflag=nonblock status=none
 
 # Write MBR and essential partition table #_____________________________________
 
 print_dtms \\n "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
+#set -x
 mount -t tmpfs tmpfs ${dst}
 zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
-ddsync errexit bs=1M iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
-devflush; waitdev 1; rm -f ${dst}/mbr.ing
+ddsync errexit iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
+for i in "" 1 2; do devflush $i ||:; done >/dev/null 2>&1
+waitdev 1; rm -f ${dst}/mbr.ing
 
 # Write EXT4 partition #________________________________________________________
 
@@ -482,7 +483,9 @@ else # ----------------------------------------------------------------- VFAT --
     usb_type="VFAT/LIVE"
 fi #----------------------------------------------------------------------------
 
-waitdev 2; umount /dev/sda? 2>/dev/null ||:
+waitdev 2; umount /dev/${dev}? 2>/dev/null ||:
+
+#exit
 
 # Write VFAT partition #________________________________________________________
 
@@ -516,6 +519,7 @@ function cpvfatext4() {
 mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying Porteus EFI/boot files from ISO file ... "
 timereal cpvfatext4 -arf ${src}/boot ${src}/EFI ${dst}
+rm -f ${dst}/boot/*.{com,exe} 2>/dev/null ||: # RAF: might not work w/moonwalker
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
@@ -549,7 +553,7 @@ function create_and_copy_changes_loopfile() {
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
     print_dtms \\n "INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
-    ddsync errexit if=${dst}/vfat.img bs=1M of=/dev/${dev}1
+    ddsync errexit if=${dst}/vfat.img of=/dev/${dev}1
     devflush 1
     rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
@@ -646,17 +650,24 @@ mk_tmp_dir
 udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
 flush_umount_device
 
+let nsec=($(date +%s%N)-$tms+500000000)/1000000000
+print_dtms "" "INFO: Creation $usb_type usbstick completed in $nsec seconds."\\n\\n
+echo "$udsc"
+
 if [ "$DEVEL_ZEROING" == "1" ]; then
+    perr \\n
     perr "WARNING"\\n
     perr "WARNING: devel zeroing ... "
-    timereal ddsync : if=/dev/zero bs=1M count=1 of=/dev/${dev}
-    perr "WARNING"\\n\\n
+    timereal "
+        ddsync : if=/dev/zero count=4 of=/dev/${dev}2 oflag=nonblock
+        ddsync : if=/dev/zero count=4 of=/dev/${dev}1 oflag=nonblock
+        ddsync : if=/dev/zero count=1 of=/dev/${dev}  oflag=nonblock
+    "
+    perr "WARNING"\\n
     devflush; partprobe
 fi
 
-let nsec=($(date +%s%N)-$tms+500000000)/1000000000
-print_dtms "" "INFO: Creation $usb_type usbstick completed in $nsec seconds."\\n\\n
-echo "$udsc"; printf \\n"device ejecting, wait... "\\n\\n
+printf \\n"device ejecting, wait... "\\n\\n
 while ! eject /dev/${dev} 2>/dev/null; do sleep 1; printf .; done
 print_dtms "" "DONE: Your bootable USB key ready to be removed safely."\\n\\n
 for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
