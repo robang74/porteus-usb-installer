@@ -7,6 +7,7 @@
 - evaluate to add zram swap for those case can make a difference.
     - rc.local additions about swapability (60) and set it to five.
 - start using porteus-v5.0-x86_64.cfg because /boot /EFI updates.
+- move all git contribs into a tree for porteus/rootcopy/ dir.
 
 # DONE
 
