@@ -34,7 +34,7 @@ The v0.2.0 has been reported that it works also for [PorteuX](https://github.com
 To understand the difference between the two variants, the LIVE is the most similar to the original Porteus while the EXT4 allows one to install a system from scratch. The timings of these two examples are referring to Porteus v5.1 (alpha2) an USB 2.0 usbstick 64GB paid €3.11 on Temu:
 
 ```
-INFO: Creation LIVE usbstick completed in 36 seconds.
+INFO: Creation LIVE usbstick completed in 34 seconds.
 
 Device     Boot   Start     End Sectors  Size Id Type
 /dev/sda1  *       2048 2459647 2457600  1.2G  7 HPFS/NTFS/exFAT
@@ -44,7 +44,7 @@ Filesystem        Size  Used Avail Use% Mounted on
 /dev/sda1          16M   13M  3.5M  79% /tmp/usb1
 /dev/sda2         1.8G  475M  1.3G  28% /tmp/usb2
 
-INFO: Creation EXT4 usbstick completed in 37 seconds.
+INFO: Creation EXT4 usbstick completed in 38 seconds.
 
 Device     Boot   Start     End Sectors  Size Id Type
 /dev/sda1  *       2048   34815   32768   16M  7 HPFS/NTFS/exFAT
@@ -75,7 +75,7 @@ Porteus 5.01 Mate booting from an old SanDisk Cruzer Fit 32GB USB 2.0 and runnin
 
 <div align="center"><img src="img/x220-porteus-mate-boot-and-desktop.jpg" width="100%"></div><br>
 
-How long does it take to prepare such a USB 2.0 stick? Less than 40 seconds (since v0.3.x) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
+How long does it take to prepare such a USB 2.0 stick with a 30MB/s of writing transfer rate? In about 30 seconds (since v0.3.x) with 128MB of persistence. Almost all the time is spent in writing the USB, hence that matters is the writing speed and data size.
 
 #### About other buses/ports
 
