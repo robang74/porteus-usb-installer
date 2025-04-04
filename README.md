@@ -85,7 +85,7 @@ So, it does not provide any advantages over the USB bus, and the same **might** 
 
 In conclusion, a USB 2.0 laptop will be limited at 480 Mbps in accessing storage devices unless SATA2 or EC54/PCie is used. And in this particular case, the adoption of a ExpressCard/54 USB 3.0 adapter can provide that upgrade needed to leverage faster USB devices with low power consumption otherwise an extra power source is required.
 
-Instead, the **X220**'s u/SD card reader is on the PCIe bus, so it is faster than USB 2.0 but is not among the bootable devices, unfortunately. However, there are two ways to overcome this issue: 1. using [Coreboot](https://stoisavljevic.com/articles/coreboot) (aka LinuxBIOS) which is out of the chance of many; 2. boot from an USB device (or internal SATA) and then switch on u/SD to run the system, and clear the USB port from the temporary boot device.
+Instead, the **X220**'s u/SD card reader is on the PCIe bus, so it is faster than USB 2.0 but is not among the bootable devices, unfortunately. However, there are two ways to overcome this issue: 1. using [Coreboot](https://stoisavljevic.com/articles/coreboot) (aka LinuxBIOS) which is out of the chance of many; 2. boot from an USB (or S/ATA) device and with the u/SD into the internal reader, it jumps into it and the USB port can be freed asap the kernel + initrd image are loaded into the RAM. Noticeably, the USB boot can be replaced by the network boot initiated by the BIOS.
 
 ---
 
