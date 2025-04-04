@@ -93,6 +93,10 @@ Instead, the **X220**'s u/SD card reader is on the PCIe bus, so it is faster tha
 
 Noticeably, the USB boot can be replaced by the network boot initiated by the BIOS, or by an internal S/ATA device with a multi-OS bootloader for which Porteus on u/SD can be an alternative to Windows installed into the internal storage device. Just for sake of completeness, some micro-SD to SD form adapters are not working but fortunately `sudo dmesg -w` immediately tells about.
 
+#### Booting from u/SD
+
+The most convenient way to boot from a non-USB u/SD embedded card reader is to install a specific boot option into your grub/windows for a multi-boot system, or create the u/SD as an Moonwalker's Porteous EXT4/INST and the other one as Moonwalker's Porteous VFAT/LIVE (or traditional Porteous from its ISO). In that way the usbstick will serve as repair, maintenance and booting device while the other as a main installed Porteus. Alternatively, both devices in EXT4/INST and on the USB the 2nd partition can be formatted or removed, to gain more free space.
+
 ---
 
 ### Huston, we have a problem
