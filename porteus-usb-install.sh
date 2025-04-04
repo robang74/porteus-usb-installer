@@ -387,9 +387,17 @@ src="/tmp/iso"
 mem="/tmp/mem"
 
 printf \\n"INFO: wake-up the chosen device and rescan the partitions, wait..."\\n
-eject -t /dev/${dev}  # RAF: give the device a wake-up, just in case
-sleep 0.25
-partprobe
+# RAF: give the device a wake-up, just in case
+str=$(eject -t /dev/${dev} 2>&1 ||:)
+if [ ! -n "$str" ]; then
+    sleep 0.25
+    partprobe
+elif echo "$str" | grep -q "CD-ROM"; then
+    CDROM=1
+else
+    echo "$str" >&2
+    errexit
+fi
 
 echo
 echo "RUNNING: $shs writes on /dev/$dev with extfs:$extfs"
@@ -397,8 +405,10 @@ echo "         ISO filepath: $iso"
 echo "         kernel. opts: ${kargs:-(none)}"
 echo; fdisk -l /dev/${dev} >/dev/null || errexit $?
 {     fdisk -l /dev/${dev}
-      echo
-      smartctl -H -d scsi /dev/${dev} 2>/dev/null | grep -i health ||:
+  if [ "$CDROM" != "1" ]; then
+      echo # RAF: this check takes too long, skipping when CDROM=1
+      smartctl -H -d scsi /dev/${dev} 2>/dev/null | grep -i health ||: 
+  fi
       echo
       mount | cut -d\( -f1 | grep "/dev/${dev}" | sort -n \
   | sed -e "s,^.*$,& <-- MOUNTED !!," | grep . ||:
@@ -413,11 +423,12 @@ fi
 
 if [ -n "$sync_pid" -a -e /proc/$sync_pid ]; then
     perr \\n"WARNING: system busy, waiting for sync (pid:$sync_pid) returns..."\\n
-    wait $sync_pid ||:
+    sleep 0.25; sync; wait $sync_pid ||:; sync; sync
 else
     perr \\n"INFO: before proceding sync the system I/O pending operations, wait..."\\n
+    sleep 0.25; sync; sync; sync
 fi
-sync;sync;sync
+
 str=$(lsof /dev/${dev}* 2>/dev/null ||:)
 test -n "$str" && printf \\n"$str"\\n
 
