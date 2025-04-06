@@ -1,13 +1,12 @@
 # TODO
 
-- check for the faster Porteus repository only when downloading the ISO.
-- ask for selecting the best mirror ONLY when downloading ISO.
 - check for coherence among ALL the SHA256 checksum files.
+- ask for selecting the fastest mirror ONLY when downloading ISO or modules.
 - if many ISO files have been found, let the user choose among them.
 - evaluate to add zram swap for those case can make a difference.
-    - rc.local additions about swapability (60) and set it to five.
-- start using porteus-v5.0-x86_64.cfg because /boot /EFI updates.
-- move all git contribs into a tree for porteus/rootcopy/ dir.
+  - rc.local additions about swapability (60) and set it to five.
+- start using porteus-v5.x-x86_64.cfg because /boot /EFI updates.
+  - check about renaming porteus-v5.x-x86_64.cfg in porteus.cfg.
 
 # DONE
 
@@ -17,7 +16,8 @@ v write the VFAT in a tmpfs loop and dd in its partition as speed test.
 v add "noswap", because swap is a performance killer.
 v download ALL the SHA256 checksum files
 v include the cvt + xrandr tweak for DVI to VGA adapters at 1280x1024.
-    v .xprofile/session should deal with the DVI-VGA adapters
+  v .xprofile/session should deal with the DVI-VGA adapters
+v move all git contribs into a tree for porteus/rootcopy/ dir.
 
 # DEVEL
 

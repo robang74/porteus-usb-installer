@@ -48,6 +48,7 @@ function is_on_demand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
 function perr() { { printf "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
+function tabout() { sed -e 's,^.,    &,'; }
 
 function amiroot() {
     test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
@@ -331,8 +332,7 @@ function devflush() {
 
 function ddsync() {
     local alt=$1; shift;
-    { dd "$@" bs=1M oflag=dsync 2>&1 || $1; }|\
-        grep -v "records" ||:
+    { dd "$@" bs=1M oflag=dsync 2>&1 || $1; }| grep -v "records" ||:
 }
 
 function smart_make_ext4() {
@@ -453,6 +453,11 @@ print_dtms() {
 }
 declare -i nsec dtms tms=$(date +%s%N)
 
+function ddzero() {
+    { dd if=/dev/zero oflag=nonblock "$@" 2>&1 || errexit; } |\
+        grep -v "records" ||:;
+}
+
 # RAF: zeroing the filesystem signatures prevents automounting #________________
 
 print_dtms "" "INFO: invalidating all previous filesystem signatures"
@@ -464,21 +469,22 @@ if which wipefs >/dev/null; then
 fi
 printf ", wait..."\\n\\n
 for i in /dev/${dev}1 /dev/${dev}2; do
-    if [ ! -b $i ]; then rm -f $i; continue; fi; printf "$i: "
-    dd if=/dev/zero bs=1M count=4 of=$i oflag=nonblock 2>&1
-done | grep -v "records" || echo "nothing to do."
-test -b /dev/${dev} && \
-    dd if=/dev/zero of=/dev/${dev} count=1 oflag=nonblock status=none
+    if [ ! -b $i ]; then rm -f $i; continue; fi
+    printf "$i: "; ddzero bs=1M count=4 of=$i
+done |{ grep --color=never . || echo "nothing to do."; } | tabout
+i=/dev/${dev}; if [ -b $i ]; then
+    ddzero of=$i count=1 status=none; fi
 
 # Write MBR and essential partition table #_____________________________________
 
 print_dtms \\n "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
 #set -x
-mount -t tmpfs tmpfs ${dst}
-zcat "${mbr}" >${dst}/mbr.ing; new_disk_id ${dst}/mbr.ing
-ddsync errexit iflag=fullblock if=${dst}/mbr.ing of=/dev/${dev}
+mount -t tmpfs tmpfs ${dst} 
+printf "/dev/${dev}: " | tabout
+f=${dst}/mbr.img; zcat "${mbr}" >$f; new_disk_id $f
+ddsync errexit iflag=fullblock if=$f of=/dev/${dev}
 for i in "" 1 2; do devflush $i ||:; done >/dev/null 2>&1
-waitdev 1; rm -f ${dst}/mbr.ing
+waitdev 1; rm -f $f
 
 # Write EXT4 partition #________________________________________________________
 
@@ -501,15 +507,13 @@ waitdev 2; umount /dev/${dev}? 2>/dev/null ||:
 # Write VFAT partition #________________________________________________________
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
-    #set -x
     declare -i nb=$(get_diskpart_size 1)
     print_dtms "" "INFO: creating a tmpfs image (szb:$nb) to init VFAT partition ... "
-    dd if=/dev/zero count=$nb of=${dst}/vfat.img status=none
+    ddzero count=$nb of=${dst}/vfat.img status=none
     if ! timereal mkfs.vfat -n EFIBOOT -aI ${dst}/vfat.img; then
         rm -f ${dst}/vfat.img; umount ${dst}; errexit
     fi
     mount -o loop ${dst}/vfat.img ${dst}
-    #set +x
 else # ----------------------------------------------------------------- VFAT --
     str="porteus"
     print_dtms "" "INFO: writing creating VFAT $str filesystem ... "
@@ -523,18 +527,24 @@ fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
 
-function cpvfatext4() {
-    ({ cp "$@" || errexit; } 2>&1 | grep -v "failed to preserve ownership" ||:)
+
+
+function cpvfatext4 {
+    _cpvfatext4() {
+        ({ cp  -arf "$@" || errexit; } 2>&1 |\
+            grep -v "failed to preserve ownership" ||:)
+    }
+    timereal _cpvfatext4 "$@"
 }
 
 mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying Porteus EFI/boot files from ISO file ... "
-timereal cpvfatext4 -arf ${src}/boot ${src}/EFI ${dst}
+cpvfatext4 ${src}/boot ${src}/EFI ${dst}
 rm -f ${dst}/boot/*.{com,exe} 2>/dev/null ||: # RAF: might not work w/moonwalker
 test -r ${dst}/${cfg} || missing ${dst}/${cfg}
 str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
 sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
-echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}
+echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}  | tabout
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     print_dtms \\n "INFO: custom boot screen background '${bsi}' copied"\\n
 fi
@@ -552,21 +562,19 @@ function xprofile_copy() {
 # Creating persistence loop filesystem or umount #______________________________
 
 function create_and_copy_changes_loopfile() {
-    #echo; set -x
     local d opts="${make_ext4_nojournal} ${make_ext4fs_lazyone}"
-    dd if=/dev/zero count=1 seek=${blocks} of=${sve} status=none
+    ddzero count=1 seek=${blocks} of=${sve} status=none
     make4fs 'changes' ${sve} $opts
     d=${dst}/porteus; mkdir -p $d
     cp -f ${sve} $d; rm -f ${sve}
-    #set +x
 }
 
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     umount ${dst}
-    print_dtms \\n "INFO: writing the VFAT loopfile to /dev/${dev}1, wait..."\\n\\n
+    print_dtms \\n "INFO: writing the VFAT loopfile to usbstick, wait..."\\n\\n
+    printf "/dev/${dev}1: " | tabout
     ddsync errexit if=${dst}/vfat.img of=/dev/${dev}1
-    devflush 1
-    rm -f ${dst}/vfat.img; umount ${dst}
+    devflush 1; rm -f ${dst}/vfat.img; umount ${dst}
     mount -o async,noatime /dev/${dev}2 ${dst}
 else # ----------------------------------------------------------------- VFAT --
     print_dtms \\n "INFO: writing the EXT4 persistence file to changes ... "
@@ -582,15 +590,19 @@ fi # ---------------------------------------------------------------------------
 # Copying Porteus system and modules from ISO file#_____________________________
 
 print_dtms \\n "INFO: copying Porteus core system files ... "
-timereal cpvfatext4 -arf ${src}/*.txt ${src}/porteus ${dst}
-lpd=${dst}/porteus/rootcopy
-if [ -r "${bsi}" ]; then
-    mkdir -p ${lpd}/usr/share/wallpapers/
-    cp ${bgi} ${lpd}/usr/share/wallpapers/porteus.jpg
-    chmod a+r ${lpd}/usr/share/wallpapers/porteus.jpg
-    print_dtms \\n "INFO: custom background '${bgi}' copied"\\n
+cpvfatext4 ${src}/*.txt ${src}/porteus ${dst}
+
+d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null)
+if [ -n "$lst" ]; then
+    print_dtms \\n "INFO: copying Porteus modules files ... "
+    cpvfatext4 $lst ${dst}/porteus/modules/
+    printf \\n"$lst"\\n | tabout
 fi
-xprofile_copy ${lpd}
+
+d=$(search rootcopy ||:); if [ -n "$d" ]; then
+    print_dtms \\n "INFO: copying rootcopy custom files ... "
+    cpvfatext4 $d ${dst}/porteus/
+fi
 
 # Unmount source and eject USB device #_________________________________________
 set +e
@@ -628,18 +640,18 @@ function enfore_allfs_checks() {
         done
         echo
         op=f
-    done
+    done 2>&1 | tabout
 }
 
 print_dtms \\n "INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
-function make_tune2fs_journal() {
+function make_tune2fs_journal() { {
     local d=/dev/${dev}2
     { fsck -yf $d || fsck -y $d || fsck -y $d ||:; } \
         2>&1 | grep -v "^e2fsck [0-9.]\+ ("   ||:
     tune2fs -U random -O fast_commit -J size=16 $d
-}
+} 2>&1 | tabout; }
 
 if [ "$journal" == "yes" ]; then
     print_dtms \\n "INFO: creating the journal and then checking ... "
@@ -658,7 +670,7 @@ enfore_allfs_checks
 # Say goodbye and exit #________________________________________________________
 
 mk_tmp_dir
-udsc="$(df -h | grep -e /dev/${dev} -e Filesyst)"
+udsc="$(df -h | grep -e /dev/${dev} -e Filesyst | tabout)"
 flush_umount_device
 
 let nsec=($(date +%s%N)-$tms+500000000)/1000000000
@@ -678,7 +690,7 @@ if [ "$DEVEL_ZEROING" == "1" ]; then
     devflush; partprobe
 fi
 
-printf \\n"device ejecting, wait... "\\n\\n
+printf \\n"device ejecting, wait... "\\n\\n | tabout
 while ! eject /dev/${dev} 2>/dev/null; do sleep 1; printf .; done
 print_dtms "" "DONE: Your bootable USB key ready to be removed safely."\\n\\n
 for i in $(pgrep -x "sleep"); do cat /proc/$i/cmdline |\
