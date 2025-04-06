@@ -272,6 +272,20 @@ zpkg="$tagver.tar.gz"
 zpkg_url="$repo/archive/refs/$reftyp"
 rawc_url="$rawu/refs/$reftyp/$tagver"
 
+download ${zpkg_url} $zpkg
+zpkg=$(search $zpkg ||:)
+if [ -r "$zpkg" ]; then
+    if [ "${DEBUG:-0}" != "0" ]; then
+        printf \\n"Archive '$zpkg' extraction"\\n\\n
+        { tar xvzf $zpkg -C . --strip-components=1 || errexit; }|\
+            sed -e "s,^porteus-usb-installer-[0-9.]*/,    ,"
+    else
+        printf \\n"Archive '$zpkg' extraction ... "
+        tar xzf $zpkg -C . --strip-components=1 || errexit
+        echo "done."
+    fi
+fi
+
 ################################################################################
 
 trap "echo; echo; exit 1" INT
@@ -350,14 +364,7 @@ if ! isocheck $isof $chk; then
     fi
 fi
 
-download ${zpkg_url} $zpkg
-zpkg=$(search $zpkg ||:)
-if [ -r "$zpkg" ]; then
-    echo
-    echo "Archive '$zpkg' extraction"
-    echo
-    tar xvzf $zpkg -C . --strip-components=1
-fi
+################################################################################
 
 if agree "Do you want to download the suggested modules"; then
     script=$(search $modules_script_name ||:)
