@@ -37,16 +37,18 @@ export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 
 # RAF: internal values #________________________________________________________
 
+modules_script_name="porteus-xzm-download.sh"
 mirrors_script_name="porteus-mirror-selection.sh"
 usbinst_script_name="porteus-usb-install.sh"
 
 # RAF: basic common functions #_________________________________________________
 
-function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
-function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
+function asking_help() { grep -qe "help" -e "\-h" /proc/$$/cmdline; }
+function is_on_demand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
-function perr() { { echo; echo -e "$@"; } >&2; }
+function perr() { { echo; echo -e "$@"; } >&2; } # RAF, TODO: to align printf
 function errexit() { echo; exit ${1:-1}; }
+function tabout() { sed -e 's,^.,    &,'; }
 
 function amiroot() {
     test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
@@ -58,7 +60,7 @@ function usage() {
 }
 
 function search() {
-    local d ldirs=". $wdr" f="${1:-}"
+    local d ldirs=". $wdr $workingd_path .." f="${1:-}"
     test -n "$f" || return 1
     test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
     for d in $ldirs; do
@@ -68,11 +70,13 @@ function search() {
 
 # RAF: basic common check & set #_______________________________________________
 
-if isondemand; then
+if is_on_demand; then
     wdr=$PWD
     perr "###############################################"
     perr "This is an on-demand from remote running script"
     perr "###############################################"
+else
+    test -n "$wdr" && wdr=$(realpath $wdr)
 fi
 
 workingd_path=$(dirname $(realpath "$0"))
@@ -99,7 +103,7 @@ tagver="v0.3.5"
 reftyp="tags"
 
 ################################################################################
-if askinghelp; then usage errexit 0; elif false; then errexit
+if asking_help; then usage errexit 0; elif false; then errexit
 #///////////////////////////////////////////////////////////////////////////////
 
 echo '#!/bin/bash
@@ -116,7 +120,7 @@ echo me cmd:$$:$cmd; bash -i <(cat test.sh)
 # 0:/dev/fd/62:2170760 ppid:2170724 pcmd:bash /dev/fd/63
 #                      stat:2170724 (bash) S 1786462 2170724 17
 
-tagver="v0.3.5" # To replace with the lastest available in tags
+tagver="v0.3." # To replace with the lastest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"
@@ -345,8 +349,8 @@ if ! isocheck $isof $chk; then
         errexit
     fi
 fi
-download ${zpkg_url} $zpkg
 
+download ${zpkg_url} $zpkg
 zpkg=$(search $zpkg ||:)
 if [ -r "$zpkg" ]; then
     echo
@@ -355,8 +359,18 @@ if [ -r "$zpkg" ]; then
     tar xvzf $zpkg -C . --strip-components=1
 fi
 
+if agree "Do you want to download the suggested modules"; then
+    script=$(search $modules_script_name ||:)
+    if [ -r $script ]; then
+        bash $script
+    else
+        perr "WARNING: script '$modules_script_name' not found, skipping!"
+    fi
+else
+    echo
+fi
+
 # Say goodbye and hand over, eventually
-echo
 let tms=($(date +%s%N)-$tms+500000000)/1000000000
 echo "INFO: Preparation completed in $tms seconds"
 
@@ -364,7 +378,7 @@ uis=${usbinst_script_name}
 dsd=${store_dirn}
 echo
 echo "->  Directory '$dsd' populated: $(du -ms . | tr -cd [0-9]) MB"
-if isondemand; then
+if is_on_demand; then
     perr "###############################################"
     perr " Now you can insert the USB stick to be writen "
     perr "###############################################"

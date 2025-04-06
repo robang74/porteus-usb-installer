@@ -33,23 +33,25 @@ bundles_dir="bundles"
 
 # RAF: basic common functions #_________________________________________________
 
-function askinghelp() { test "x$1" == "x-h" -o "x$1" == "x--help"; } 
-function isondemand() { echo "$0" | grep -q "/dev/fd/"; }
+function is_menu_mode() { grep -q -- "--user-menu" /proc/$$/cmdline; }
+function asking_help() { grep -qe "help" -e "\-h" /proc/$$/cmdline; }
+function is_on_demand() { echo "$0" | grep -q "/dev/fd/"; }
 function isdevel() { test "${DEVEL:-0}" != "0"; }
-function perr() { { echo; echo -e "$@"; } >&2; }
+function perr() { { printf "$@"; } >&2; }
 function errexit() { echo; exit ${1:-1}; }
+function tabout() { sed -e 's,^.,    &,'; }
 
 function amiroot() {
     test "$EUID" == "0" -o "$ID" == "0" -o "$(whoami)" == "root"
 }
 
 function usage() {
-    perr "USAGE: bash ${shs:-$(basename $0)} $usage_strn"
+    printf \\n"USAGE: bash ${shs:-$(basename $0)} $usage_strn"\\n
     eval "$@"
 }
 
 function search() {
-    local d ldirs=". $wdr" f="${1:-}"
+    local d ldirs=". $wdr $workingd_path .." f="${1:-}"
     test -n "$f" || return 1
     test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
     for d in $ldirs; do
@@ -58,6 +60,21 @@ function search() {
 }
 
 # RAF: basic common check & set #_______________________________________________
+
+if is_on_demand; then
+    wdr=$PWD
+    perr \\n"###############################################"
+    perr \\n"This is an on-demand from remote running script"
+    perr \\n"###############################################"\\n\\n
+else
+    test -n "$wdr" && wdr=$(realpath $wdr)
+fi
+
+workingd_path=$(dirname $(realpath "$0"))
+download_path=${download_path:-$PWD}
+if [ "$(basename $PWD)" != "$store_dirn" ]; then
+    download_path="$download_path/$store_dirn"
+fi
 
 v="-q --show-progress"
 s=$bundles_dir.${sha256_file/.txt/}
@@ -93,7 +110,7 @@ printf \\n"INFO: downloading, wait ..."\\n\\n
 for i in "man-lite" "netsurf" "remmina"; do
     f=$(grep $i $s | tr -s ' ' | cut -d ' ' -f2 | sort -n | tail -n1)
     test -r $f || wget $v -c $u/$f 
-    sha256sum -c $s 2>/dev/null | grep OK | grep $i
+    sha256sum -c $s 2>/dev/null | grep OK | grep $i | tabout
 done
 echo
 

@@ -60,7 +60,7 @@ function usage() {
 }
 
 function search() {
-    local d ldirs=". $wdr" f="${1:-}"
+    local d ldirs=". $wdr $workingd_path .." f="${1:-}"
     test -n "$f" || return 1
     test "$(basename $wdr)"  == "tmp" && ldirs="$ldirs .."
     for d in $ldirs; do
@@ -75,6 +75,8 @@ if is_on_demand; then
     perr \\n"###############################################"
     perr \\n"This is an on-demand from remote running script"
     perr \\n"###############################################"\\n\\n
+else
+    test -n "$wdr" && wdr=$(realpath $wdr)
 fi
 
 workingd_path=$(dirname $(realpath "$0"))
