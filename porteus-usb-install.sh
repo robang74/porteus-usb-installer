@@ -593,17 +593,27 @@ fi # ---------------------------------------------------------------------------
 
 print_dtms \\n "INFO: copying Porteus core system files ... "
 cpvfatext4 ${src}/*.txt ${src}/porteus ${dst}
+echo; du -m ${dst}/porteus/*/*.xzm | sort -n | tabout
 
 d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null)
 if [ -n "$lst" ]; then
     print_dtms \\n "INFO: copying Porteus modules files ... "
-    cpvfatext4 $lst ${dst}/porteus/modules/
-    printf \\n"$lst"\\n | tabout
+    if false; then
+        cpvfatext4 $lst ${dst}/porteus/modules/
+    else
+        d=${dst}/porteus/base; cpvfatext4 $lst $d/
+        for f in $(echo "$lst" | grep -v "000-z-" ||:); do
+            f=$(basename $f); mv $d/$f $d/000-z-$f; done
+    fi
+    echo; du -m $lst | sort -n | tabout
+    #printf \\n"$lst"\\n | tabout
 fi
 
-d=$(search rootcopy ||:); if [ -n "$d" ]; then
+s=$(search rootcopy ||:); if [ -n "$s" ]; then
     print_dtms \\n "INFO: copying rootcopy custom files ... "
-    cpvfatext4 $d ${dst}/porteus/
+    d=${dst}/porteus; cpvfatext4 $s $d/
+    s=$d/rootcopy/home/guest/.config/dconf/user.gz
+    test -r $s && { pigz -d $s || gunzip $s; } 2>/dev/null
 fi
 
 # Unmount source and eject USB device #_________________________________________
