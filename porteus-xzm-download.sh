@@ -28,6 +28,9 @@ export mirror_dflt=${mirror_dflt:-https://mirrors.dotsrc.org/porteus}
 
 # RAF: internal values #________________________________________________________
 
+trsn_filename="transition-v5.01-to-v5.1-20250409"
+trsn_dnld_script="xzm/$trsn_filename.dsh"
+trsn_sha_file="xzm/$trsn_filename.sha"
 backup_version="Porteus-v5.01"
 bundles_dir="bundles"
 
@@ -106,14 +109,23 @@ if [ ! -n "$u" ]; then
     break
 fi
 
-printf \\n"INFO: downloading, wait ..."\\n\\n
+printf \\n"INFO: downloading app modules, wait ..."\\n\\n
 for i in "man-lite" "netsurf" "remmina"; do
     f=$(grep $i $s | tr -s ' ' | cut -d ' ' -f2 | sort -n | tail -n1)
     test -r $f || wget $v -c $u/$f 
-    sha256sum -c $s 2>/dev/null | grep OK | grep $i | tabout
-done
-echo
+    sha256sum -c $s | grep -e ": OK$" | tabout | grep $i
+done 2>/dev/null
 
+if [ -r $trsn_dnld_script ]; then
+    printf \\n"INFO: downloading transitional module, wait ..."\\n\\n
+    f=${trsn_filename}.xzm
+    if [ ! -r ${trsn_filename}.xzm ]; then
+        bash $wdr/$trsn_dnld_script
+    fi
+    sha256sum -c $trsn_sha_file | grep -e ": OK$" | tabout | grep $f
+fi 2>/dev/null
+
+echo
 test "$chd" == "1" && cd - >/dev/null
 
 break; done ####################################################################
