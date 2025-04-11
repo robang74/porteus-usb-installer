@@ -602,7 +602,9 @@ if [ -n "$lst" ]; then
         cpvfatext4 $lst ${dst}/porteus/modules/
     else
         d=${dst}/porteus/base; cpvfatext4 $lst $d/
-        for f in $(echo "$lst" | grep -v "000-z-" ||:); do
+        for f in $(echo "$lst" | grep -e "transition-" ||:); do
+            f=$(basename $f); mv $d/$f $d/000-a-$f; done
+        for f in $(echo "$lst" | grep -v "transition-" ||:); do
             f=$(basename $f); mv $d/$f $d/000-z-$f; done
     fi
     echo; du -m $lst | sort -n | tabout
