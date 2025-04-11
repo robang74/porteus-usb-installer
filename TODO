@@ -5,6 +5,7 @@
 - if many ISO files have been found, let the user choose among them.
 - evaluate to add zram swap for those case can make a difference.
   - rc.local additions about swapability (60) and set it to five.
+  - rc.local umount all devices which are not the current root.
 - start using porteus-v5.x-x86_64.cfg because /boot /EFI updates.
   - check about renaming porteus-v5.x-x86_64.cfg in porteus.cfg.
 
@@ -21,6 +22,7 @@ v move all git contribs into a tree for porteus/rootcopy/ dir.
 
 # DEVEL
 
-- short link for the script on the last tags v0.3.5: tinyurl.com/2bqkxy5w
+- short link for the script on the last tags v0.3.6: tinyurl.com/287pzck5
 - short link for the script on the main head: tinyurl.com/2bn89qqo (RISKY!!)
+- bash <(wget -qO- $url) to run on demand from remote the net install script
 

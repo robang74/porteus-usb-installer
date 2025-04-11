@@ -181,7 +181,7 @@ This little script downloads and immediately puts in execution the network insta
 
 ```
 mkdir -p usbtest; cd usbtest
-tagver="v0.3.5" # To replace with the latest available in tags
+tagver="v0.3.6" # To replace with the latest available in tags
 rawurl="https://raw.githubusercontent.com/robang74"
 rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
 rawurl="$rawurl/porteus-net-install.sh"

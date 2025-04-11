@@ -5,7 +5,7 @@
 # Support for expert users wishing to test on-demand installation starts from
 #
 # URL: https://raw.githubusercontent.com/robang74/porteus-usb-installer
-# VER:                         /refs/tags/v0.3.5/porteus-net-install.sh
+# VER:                         /refs/tags/v0.3.6/porteus-net-install.sh
 # MAN:                           ?tab=readme-ov-file#usage-quick--dirty
 #
 # It is suggest testing on a spare machine that does NOT hold valuable data,
@@ -99,7 +99,7 @@ proj="porteus-usb-installer"
 repo="https://github.com/$user/$proj"
 rawu="https://raw.githubusercontent.com/$user/$proj"
 
-tagver="v0.3.5"
+tagver="v0.3.6"
 reftyp="tags"
 
 ################################################################################
