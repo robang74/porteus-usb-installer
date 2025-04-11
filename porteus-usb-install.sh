@@ -543,10 +543,13 @@ mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying Porteus EFI/boot files from ISO file ... "
 cpvfatext4 ${src}/boot ${src}/EFI ${dst}
 rm -f ${dst}/boot/*.{com,exe} 2>/dev/null ||: # RAF: might not work w/moonwalker
-test -r ${dst}/${cfg} || missing ${dst}/${cfg}
-str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
-sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
-echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}  | tabout
+if [ -r ${dst}/${cfg} ]; then
+    str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
+    sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
+    echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}  | tabout
+else
+    missing ${dst}/${cfg}
+fi
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     print_dtms \\n "INFO: custom boot screen background '${bsi}' copied"\\n
 fi
@@ -592,10 +595,10 @@ fi # ---------------------------------------------------------------------------
 # Copying Porteus system and modules from ISO file#_____________________________
 
 print_dtms \\n "INFO: copying Porteus core system files ... "
-cpvfatext4 ${src}/*.txt ${src}/porteus ${dst}
-echo; du -m ${dst}/porteus/*/*.xzm | sort -n | tabout
+cpvfatext4 ${src}/*.txt ${src}/porteus ${dst}; echo
+{ du -m ${dst}/porteus/*/*.xzm 2>&1 ||:; }| sort -n | tabout
 
-d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null)
+d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
 if [ -n "$lst" ]; then
     print_dtms \\n "INFO: copying Porteus modules files ... "
     if false; then
