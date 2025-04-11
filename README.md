@@ -155,6 +155,12 @@ Full installation:
 - If SATA2+ is available, at half of the price a 240GB+ [SSD](https://ssd-tester.com/sata_ssd_test.php?sort=250+GB) is another 3x faster.
 - If USB 3.x then a SATA [adapter](https://raw.githubusercontent.com/robang74/porteus-usb-installer/refs/heads/main/img/usb3-sata3-adapter-with-plastic-case.webp) w/ABS case ($4) is faster, cheaper & easier.
 
+Transition 5.x:
+
+- Currently the v5.1 is in alpha2 stage but old applications can still working adding a [transitional](https://tinyurl.com/22r4jnf5) modules
+- Since [v0.3.6](https://github.com/robang74/porteus-usb-installer/tree/v0.3.6) the scripts support the addition of this module (as example, not granted supports all apps)
+- Among applications, two in particular are included into suggested extra modules: remmina and netsurf.
+
 Data encryption:
 
 - It is unnecessary as long as we are using Porteus as testing/rescue distro.
