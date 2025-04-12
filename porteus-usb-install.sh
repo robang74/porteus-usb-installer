@@ -544,25 +544,41 @@ function cpvfatext4 {
 mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying ${porteus^} EFI/boot files from ISO file ... "
 cpvfatext4 ${src}/boot ${src}/EFI ${dst}
-rm -f ${dst}/boot/*.{com,exe} 2>/dev/null ||: # RAF: might not work w/moonwalker
-if [ -r ${dst}/${cfg} ]; then
-    str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
-    sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
-    echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}  | tabout
-fi
-if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
-    print_dtms \\n "INFO: custom boot screen background '${bsi}' copied"\\n
-fi
 
-function xprofile_copy() {
-    local lpd fld fle=$(search xprofile ||:)
-    if [ -r "$fle" ]; then
-        lpd=$1/home/guest; fld=${lpd}/.xprofile
-        mkdir -p ${lpd}; cp -f ${fle} ${fld}
-        chmod a+x ${fld}; chown -R ${guest_owner} ${lpd} 2>/dev/null ||:
-        print_dtms \\n "INFO: custom .xprofile settings for DVI-VGA adapters copied"\\n
+# RAF: these executables might not work w/moonwalker edition
+rm -f ${dst}/boot/*.{com,exe,run} 2>/dev/null ||:
+
+function porteus_configure() {
+    local str i b p f d
+    f="${dst}/${porteus}/${porteus}.cfg"
+    p="${dst}/boot/syslinux/bootlogo.png"
+    b="${dst}/boot/syslinux/${porteus}.png"
+    if [ -r ${bsi} ]; then
+        if [ -r $p ]; then
+            cp -f ${bsi} $p && d="bootlog.png"
+        else
+            cp -f ${bsi} $b && d="${porteus}.png"
+        fi 2>/dev/null
+        test -n "$d" &&\
+            print_dtms \\n "INFO: custom boot screen background '$d' copied"\\n
     fi
+    if [ -r $f ]; then
+        str="chages=/${porteus}"
+        is_ext4_install || str="${str}/${sve}"
+        for i in ${str} ${kargs}; do echo "$i" >>$f; done
+        cat $f | cut -d\# -f1 | grep . | tr '\n' ' ' |\
+            { grep . && echo; } | tabout
+    elif [ -r ${dst}/${cfg} ]; then
+        str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
+        sed -e "s,APPEND changes=/${porteus}$,&${str}," -i ${dst}/${cfg}
+        echo; grep -n "APPEND changes=/${porteus}${str}" ${dst}/${cfg}  | tabout
+    else
+        return 1
+    fi
+    return 0
 }
+
+yet2cfg="yes"; porteus_configure && yet2cfg="no"
 
 # Creating persistence loop filesystem or umount #______________________________
 
