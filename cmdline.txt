@@ -1,1 +1,1 @@
-noswap intel_iommu=on amd_iommu=on iommu=pt
+noswap noauto utc rootmount zram=25% intel_iommu=on amd_iommu=on iommu=pt
