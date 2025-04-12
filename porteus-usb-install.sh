@@ -30,11 +30,14 @@ journal="yes"
 blocks="256K"
 
 ## Some more options / parameters that might be worth to be customised
+
 guest_owner="1000:100" # guest:users
 make_ext4_nojournal="-O ^has_journal"
 make_ext4fs_options="-DO fast_commit"
 make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
 make_ext4fs_notlazy="-E lazy_itable_init=0,lazy_journal_init=0"
+
+porteus=${VARIANT:-porteus}
 porteus_config_path="/boot/syslinux/porteus.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
@@ -264,7 +267,8 @@ Executing shell script from: $wdr
            script file name: $shs
               with oprtions: ${@:-$str}
               kern. cmdline: ${kargs:-(none)}
-                    by user: ${SUDO_USER:+$SUDO_USER as }${USER} 
+                    by user: ${SUDO_USER:+$SUDO_USER as }${USER}
+                    variant: ${porteus}
                       devel: ${DEVEL:-unset}"
 
 if is_menu_mode; then
@@ -493,7 +497,7 @@ waitdev 1; rm -f $f
 if is_ext4_install; then # --------------------------------------------- EXT4 --
     dofdisk "d_n_p_1_ _+16M_y_t_7_a_n_p_2_ _+1880M_" /dev/${dev}
     devflush; waitdev 2
-    smart_make_ext4 "porteus" /dev/${dev}2
+    smart_make_ext4 "${porteus}" /dev/${dev}2
     usb_type="EXT4/INST"
 else # ----------------------------------------------------------------- VFAT --
     dofdisk "d_n_p_1_ _+1200M_y_t_7_a_n_p_2_ _+700M_" /dev/${dev}
@@ -517,7 +521,7 @@ if is_ext4_install; then # --------------------------------------------- EXT4 --
     fi
     mount -o loop ${dst}/vfat.img ${dst}
 else # ----------------------------------------------------------------- VFAT --
-    str="porteus"
+    str="${porteus}"
     print_dtms "" "INFO: writing creating VFAT $str filesystem ... "
     timereal mkfs.vfat -a -F32 -n "${str^^}" /dev/${dev}1
     print_dtms "" "INFO: mounting /dev/${dev}1 on ${dst}, wait..."\\n
@@ -529,8 +533,6 @@ fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
 
-
-
 function cpvfatext4 {
     _cpvfatext4() {
         ({ cp  -arf "$@" || errexit; } 2>&1 |\
@@ -540,15 +542,13 @@ function cpvfatext4 {
 }
 
 mount -o loop,ro ${iso} ${src} || errexit
-print_dtms \\n "INFO: copying Porteus EFI/boot files from ISO file ... "
+print_dtms \\n "INFO: copying ${porteus^} EFI/boot files from ISO file ... "
 cpvfatext4 ${src}/boot ${src}/EFI ${dst}
 rm -f ${dst}/boot/*.{com,exe} 2>/dev/null ||: # RAF: might not work w/moonwalker
 if [ -r ${dst}/${cfg} ]; then
     str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
     sed -e "s,APPEND changes=/porteus$,&${str}," -i ${dst}/${cfg}
     echo; grep -n "APPEND changes=/porteus${str}" ${dst}/${cfg}  | tabout
-else
-    missing ${dst}/${cfg}
 fi
 if test -n "${bsi}" && cp -f ${bsi} ${dst}/boot/syslinux/porteus.png; then
     print_dtms \\n "INFO: custom boot screen background '${bsi}' copied"\\n
@@ -570,7 +570,7 @@ function create_and_copy_changes_loopfile() {
     local d opts="${make_ext4_nojournal} ${make_ext4fs_lazyone}"
     ddzero count=1 seek=${blocks} of=${sve} status=none
     make4fs 'changes' ${sve} $opts
-    d=${dst}/porteus; mkdir -p $d
+    d=${dst}/${porteus}; mkdir -p $d
     cp -f ${sve} $d; rm -f ${sve}
 }
 
@@ -586,7 +586,7 @@ else # ----------------------------------------------------------------- VFAT --
     timereal "create_and_copy_changes_loopfile"
     # RAF: using cp instead of mv because it handles the sparse
 if false; then
-    d=${dst}/porteus; mkdir -p $d
+    d=${dst}/${porteus}; mkdir -p $d
     str="cp -f ${sve} $d"; printf "$str ... "
     timereal "$str"; rm -f ${sve}
 fi
@@ -594,8 +594,8 @@ fi # ---------------------------------------------------------------------------
 
 # Copying Porteus system and modules from ISO file#_____________________________
 
-print_dtms \\n "INFO: copying Porteus core system files ... "
-cpvfatext4 ${src}/*.txt ${src}/porteus ${dst}; echo
+print_dtms \\n "INFO: copying ${porteus^} core system files ... "
+cpvfatext4 ${src}/*.txt ${src}/${porteus} ${dst}; echo
 { du -m ${dst}/porteus/*/*.xzm 2>&1 ||:; }| sort -n | tabout
 
 d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
