@@ -596,29 +596,31 @@ fi # ---------------------------------------------------------------------------
 
 print_dtms \\n "INFO: copying ${porteus^} core system files ... "
 cpvfatext4 ${src}/*.txt ${src}/${porteus} ${dst}; echo
-{ du -m ${dst}/porteus/*/*.xzm 2>&1 ||:; }| sort -n | tabout
+du -m ${dst}/${porteus}/*/*.xzm 2>&1 | sort -n | tabout
 
 d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
 if [ -n "$lst" ]; then
-    print_dtms \\n "INFO: copying Porteus modules files ... "
+    print_dtms \\n "INFO: copying ${porteus^} modules files ... "
     if false; then
-        cpvfatext4 $lst ${dst}/porteus/modules/
+        d=${dst}/${porteus}/modules; cpvfatext4 $lst $d/
     else
-        d=${dst}/porteus/base; cpvfatext4 $lst $d/
+        d=${dst}/${porteus}/base; cpvfatext4 $lst $d/
         for f in $(echo "$lst" | grep -e "transition-" ||:); do
             f=$(basename $f); mv $d/$f $d/000-a-$f; done
         for f in $(echo "$lst" | grep -v "transition-" ||:); do
             f=$(basename $f); mv $d/$f $d/000-z-$f; done
     fi
-    echo; du -m $lst | sort -n | tabout
+    du -m $lst $d/*.xzm | grep . | sort -n | tabout
     #printf \\n"$lst"\\n | tabout
 fi
 
 s=$(search rootcopy ||:); if [ -n "$s" ]; then
     print_dtms \\n "INFO: copying rootcopy custom files ... "
-    d=${dst}/porteus; cpvfatext4 $s $d/
-    s=$d/rootcopy/home/guest/.config/dconf/user.gz
-    test -r $s && { pigz -d $s || gunzip $s; } 2>/dev/null
+    d=${dst}/${porteus}; cpvfatext4 $s $d/; echo
+    g=$d/rootcopy/home/guest
+    s=$g/.config/dconf/${porteus}
+    test -r $s.gz && zcat $s.gz > $s
+    chown -R ${guest_owner} $g/ 2>/dev/null ||:
 fi
 
 # Unmount source and eject USB device #_________________________________________
@@ -660,7 +662,7 @@ function enfore_allfs_checks() {
     done 2>&1 | tabout
 }
 
-print_dtms \\n "INFO: minute(s) long WAITING for the unmount synchronisation ... "
+print_dtms "" "INFO: minute(s) long WAITING for the unmount synchronisation ... "
 timereal flush_umount_device
 
 function make_tune2fs_journal() { {
