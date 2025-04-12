@@ -484,7 +484,6 @@ i=/dev/${dev}; if [ -b $i ]; then
 # Write MBR and essential partition table #_____________________________________
 
 print_dtms \\n "INFO: writing the MBR and preparing essential partitions, wait... "\\n\\n
-#set -x
 mount -t tmpfs tmpfs ${dst} 
 printf "/dev/${dev}: " | tabout
 f=${dst}/mbr.img; zcat "${mbr}" >$f; new_disk_id $f
@@ -541,6 +540,8 @@ function cpvfatext4 {
     timereal _cpvfatext4 "$@"
 }
 
+function is_real_porteus() { test "${porteus}" == "porteus"; }
+
 mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying ${porteus^} EFI/boot files from ISO file ... "
 cpvfatext4 ${src}/boot ${src}/EFI ${dst}
@@ -548,20 +549,16 @@ cpvfatext4 ${src}/boot ${src}/EFI ${dst}
 # RAF: these executables might not work w/moonwalker edition
 rm -f ${dst}/boot/*.{com,exe,run} 2>/dev/null ||:
 
+# RAF: copy the boot logo and similar stuff, then removed 
+cpvfatext4 efiboot/* ${dst}/
+if is_real_porteus; then
+    rm -f ${dst}/boot/syslinux/{black,bootlogo}.png
+else
+    rm -f ${dst}/boot/syslinux/porteus.png
+fi
+
 function porteus_configure() {
-    local str i b p f d
-    f="${dst}/${porteus}/${porteus}.cfg"
-    p="${dst}/boot/syslinux/bootlogo.png"
-    b="${dst}/boot/syslinux/${porteus}.png"
-    if [ -r ${bsi} ]; then
-        if [ -r $p ]; then
-            cp -f ${bsi} $p && d="bootlog.png"
-        else
-            cp -f ${bsi} $b && d="${porteus}.png"
-        fi 2>/dev/null
-        test -n "$d" &&\
-            print_dtms \\n "INFO: custom boot screen background '$d' copied"\\n
-    fi
+    local str i f="${dst}/${porteus}/${porteus}.cfg"
     if [ -r $f ]; then
         str="chages=/${porteus}"
         is_ext4_install || str="${str}/${sve}"
@@ -613,8 +610,6 @@ fi # ---------------------------------------------------------------------------
 print_dtms \\n "INFO: copying ${porteus^} core system files ... "
 cpvfatext4 ${src}/*.txt ${src}/${porteus} ${dst}; echo
 du -m ${dst}/${porteus}/*/*.xzm 2>&1 | sort -n | tabout
-
-function is_real_porteus() { test "${porteus}" == "porteus"; }
 
 if is_real_porteus; then
     d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
