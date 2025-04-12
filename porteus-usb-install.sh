@@ -598,30 +598,35 @@ print_dtms \\n "INFO: copying ${porteus^} core system files ... "
 cpvfatext4 ${src}/*.txt ${src}/${porteus} ${dst}; echo
 du -m ${dst}/${porteus}/*/*.xzm 2>&1 | sort -n | tabout
 
-d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
-if [ -n "$lst" ]; then
-    print_dtms \\n "INFO: copying ${porteus^} modules files ... "
-    if false; then
-        d=${dst}/${porteus}/modules; cpvfatext4 $lst $d/
-    else
-        d=${dst}/${porteus}/base; cpvfatext4 $lst $d/
-        for f in $(echo "$lst" | grep -e "transition-" ||:); do
-            f=$(basename $f); mv $d/$f $d/000-a-$f; done
-        for f in $(echo "$lst" | grep -v "transition-" ||:); do
-            f=$(basename $f); mv $d/$f $d/000-z-$f; done
+function is_real_porteus() { test "${porteus}" == "porteus"; }
+
+if is_real_porteus; then
+    d=$(dirname $iso); lst=$(ls -1 $d/*.xzm 2>/dev/null ||:)
+    if [ -n "$lst" ]; then
+        print_dtms \\n "INFO: copying ${porteus^} modules files ... "
+        if false; then
+            d=${dst}/${porteus}/modules; cpvfatext4 $lst $d/
+        else
+            d=${dst}/${porteus}/base; cpvfatext4 $lst $d/
+            for f in $(echo "$lst" | grep -e "transition-" ||:); do
+                f=$(basename $f); mv $d/$f $d/000-a-$f; done
+            for f in $(echo "$lst" | grep -v "transition-" ||:); do
+                f=$(basename $f); mv $d/$f $d/000-z-$f; done
+        fi
+        du -m $lst $d/*.xzm | grep . | sort -n | tabout
     fi
-    du -m $lst $d/*.xzm | grep . | sort -n | tabout
-    #printf \\n"$lst"\\n | tabout
 fi
 
 s=$(search rootcopy ||:); if [ -n "$s" ]; then
     print_dtms \\n "INFO: copying rootcopy custom files ... "
-    d=${dst}/${porteus}; cpvfatext4 $s $d/; echo
+    d=${dst}/${porteus}; cpvfatext4 $s $d/
     g=$d/rootcopy/home/guest
     s=$g/.config/dconf/${porteus}
     test -r $s.gz && zcat $s.gz > $s
     chown -R ${guest_owner} $g/ 2>/dev/null ||:
 fi
+
+echo; test "$yet2cfg" == "yes" && porteus_configure
 
 # Unmount source and eject USB device #_________________________________________
 set +e
