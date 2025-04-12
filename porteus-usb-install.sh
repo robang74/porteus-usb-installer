@@ -38,7 +38,7 @@ make_ext4fs_lazyone="-E lazy_itable_init=1,lazy_journal_init=1"
 make_ext4fs_notlazy="-E lazy_itable_init=0,lazy_journal_init=0"
 
 porteus=${VARIANT:-porteus}
-porteus_config_path="/boot/syslinux/porteus.cfg"
+porteus_config_path="/boot/syslinux/${porteus}.cfg"
 background_filename="moonwalker-background.jpg"
 bootscreen_filename="moonwalker-bootscreen.png"
 usbsk_init_filename="porteus-usb-bootable.mbr.gz"
@@ -98,6 +98,8 @@ else
 fi
 
 # RAF: internal check & set and early functions #_______________________________
+
+function is_real_porteus() { test "${porteus}" == "porteus"; }
 
 if is_on_demand; then
     perr \\n"ERROR: this script is NOT supposed being executed on-demand, abort!"
@@ -216,6 +218,10 @@ if [ "x$3" == "x--ext4-install" ]; then
 fi
 kmp=${3:-}
 extfs=${4:+4}
+if ! is_real_porteus; then
+    extfs=4
+fi
+
 str=$(search "$kernelargs_filename" ||:)
 kargs=${str:+$(cat "$str" 2>/dev/null ||:)}
 
@@ -261,6 +267,9 @@ fi 2>/dev/null
 
 str=${usrmn/1/user menu mode active}
 str=${str/0/(none)}
+tfs=${extfs/0/(live)}
+tfs=${tfs/4/(inst)}
+
 echo "
 Executing shell script from: $wdr
        current working path: $PWD
@@ -268,7 +277,7 @@ Executing shell script from: $wdr
               with oprtions: ${@:-$str}
               kern. cmdline: ${kargs:-(none)}
                     by user: ${SUDO_USER:+$SUDO_USER as }${USER}
-                    variant: ${porteus}
+                    variant: ${porteus} ${tfs}
                       devel: ${DEVEL:-unset}"
 
 if is_menu_mode; then
@@ -295,7 +304,7 @@ if is_menu_mode; then
     test -r "$iso" || missing "ISO:${iso:- not found}"
     agree "Is this '$iso' the ISO file you want use" || usage errexit
 
-    while true; do
+    while is_real_porteus; do
         if agree "Do you want an EXT4 installation"; then
             extfs=4; break
         elif agree "Do you want a LIVE for sporadic use" ; then
@@ -532,15 +541,15 @@ fi # ---------------------------------------------------------------------------
 
 # Copying Porteus EFI/boot files from ISO file #________________________________
 
-function cpvfatext4 {
-    _cpvfatext4() {
-        ({ cp  -arf "$@" || errexit; } 2>&1 |\
-            grep -v "failed to preserve ownership" ||:)
-    }
-    timereal _cpvfatext4 "$@"
+function _cpvfatext4() {
+    local opt="-L"; is_ext4_install && opt=""
+    ({ cp  -arf $opt "$@" || errexit; } 2>&1 |\
+        grep -v "failed to preserve ownership" ||:)
 }
 
-function is_real_porteus() { test "${porteus}" == "porteus"; }
+function cpvfatext4 {
+    timereal _cpvfatext4 "$@"
+}
 
 mount -o loop,ro ${iso} ${src} || errexit
 print_dtms \\n "INFO: copying ${porteus^} EFI/boot files from ISO file ... "
@@ -550,7 +559,7 @@ cpvfatext4 ${src}/boot ${src}/EFI ${dst}
 rm -f ${dst}/boot/*.{com,exe,run} 2>/dev/null ||:
 
 # RAF: copy the boot logo and similar stuff, then removed 
-cpvfatext4 efiboot/* ${dst}/
+_cpvfatext4 efiboot/* ${dst}/
 if is_real_porteus; then
     rm -f ${dst}/boot/syslinux/{black,bootlogo}.png
 else
@@ -559,7 +568,7 @@ fi
 
 function porteus_configure() {
     local str i f="${dst}/${porteus}/${porteus}.cfg"
-    if [ -r $f ]; then
+    if false && [ -r $f ]; then
         str="chages=/${porteus}"
         is_ext4_install || str="${str}/${sve}"
         for i in ${str} ${kargs}; do echo "$i" >>$f; done
@@ -567,8 +576,8 @@ function porteus_configure() {
             { grep . && echo; } | tabout
     elif [ -r ${dst}/${cfg} ]; then
         str=" ${kargs}"; is_ext4_install || str="/${sve} ${kargs}"
-        sed -e "s,APPEND changes=/${porteus}$,&${str}," -i ${dst}/${cfg}
-        echo; grep -n "APPEND changes=/${porteus}${str}" ${dst}/${cfg}  | tabout
+        sed -e "s,APPEND changes=[^/]*/${porteus}$,&${str}," -i ${dst}/${cfg}
+        grep -n "APPEND changes=[^/]*/${porteus}${str}" ${dst}/${cfg} | tabout
     else
         return 1
     fi
@@ -628,13 +637,21 @@ if is_real_porteus; then
     fi
 fi
 
+
 s=$(search rootcopy ||:); if [ -n "$s" ]; then
     print_dtms \\n "INFO: copying rootcopy custom files ... "
     d=${dst}/${porteus}; cpvfatext4 $s $d/
+    a=$d/rootcopy/usr/share
+    if ! is_ext4_install; then
+        rm -f $a/wallpapers/moonwalker.jpg
+        is_real_porteus &&
+            rm -f $a/backgrounds/Ubuntu-Mate-Cold-no-logo.jpg
+    fi
     g=$d/rootcopy/home/guest
     s=$g/.config/dconf/${porteus}
     test -r $s.gz && zcat $s.gz > $s
     chown -R ${guest_owner} $g/ 2>/dev/null ||:
+    ls -1 ${a}/{wallpapers,backgrounds}/*.jpg | tabout
 fi
 
 echo; test "$yet2cfg" == "yes" && porteus_configure
