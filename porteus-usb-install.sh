@@ -248,7 +248,7 @@ test -r "$mbr" || mbr="$wdr/$mbr"
 test -r "$mbr" || usage missing "$mbr"
 
 if ! amiroot; then
-    printf \\n"WARNING: script '$shs'${dev:+for '/dev/$dev'} requires root priviledges (devel:${DEVEL:-0}) (menu:$usrmn)."\\n
+    printf \\n"WARNING: script '$shs' ${dev:+for '/dev/$dev' }requires root priviledges (devel:${DEVEL:-0}) (menu:$usrmn)."\\n
     # RAF: this could be annoying for DEVs but is an extra safety USR checkpoint
     isdevel || { amiroot || sudo -k; }
     is_menu_mode && set -- "--user-menu"
@@ -641,17 +641,23 @@ fi
 s=$(search rootcopy ||:); if [ -n "$s" ]; then
     print_dtms \\n "INFO: copying rootcopy custom files ... "
     d=${dst}/${porteus}; cpvfatext4 $s $d/
+
     a=$d/rootcopy/usr/share
     if ! is_ext4_install; then
         rm -f $a/wallpapers/moonwalker.jpg
-        is_real_porteus &&
+        is_real_porteus &&\
             rm -f $a/backgrounds/Ubuntu-Mate-Cold-no-logo.jpg
+    else
+        is_real_porteus ||\
+            rm -f $a/wallpapers/porteus.jpg
     fi
+    str=$(ls -1 $a/{wallpapers,backgrounds}/*.jpg ||:)
+    test -n "$str" && printf \\n"$str"\\n | tabout
+
     g=$d/rootcopy/home/guest
     s=$g/.config/dconf/${porteus}
     test -r $s.gz && zcat $s.gz > $s
     chown -R ${guest_owner} $g/ 2>/dev/null ||:
-    ls -1 ${a}/{wallpapers,backgrounds}/*.jpg | tabout
 fi
 
 echo; test "$yet2cfg" == "yes" && porteus_configure
