@@ -112,7 +112,7 @@ if asking_help; then usage errexit 0; else ##################################
 
 function missing() {
     perr \\n"ERROR: file '${1:-}' is missing or wrong type, abort!"\\n
-    errexit
+    usage errexit
 }
 
 function besure() {
@@ -233,9 +233,9 @@ mbr=$usbsk_init_filename
 
 if ! is_menu_mode; then
     test -b "/dev/$dev" || dev=$(basename "$dev")
-    test -b "/dev/$dev" || usage missing "${dev:+/dev/}${dev:-block_device}"
+    test -b "/dev/$dev" || missing "${dev:+/dev/}${dev:-block_device}"
     test -r "$iso" || iso="$wdr/$iso"
-    test -r "$iso" || usage missing "$iso"
+    test -r "$iso" || missing "$iso"
 fi
 
 test -r "$bsi" || bsi="$wdr/$bsi"
@@ -245,7 +245,7 @@ test -r "$bgi" || bgi="$wdr/$bgi"
 test -f "$bgi" || bgi=""
 
 test -r "$mbr" || mbr="$wdr/$mbr"
-test -r "$mbr" || usage missing "$mbr"
+test -r "$mbr" || missing "$mbr"
 
 if ! amiroot; then
     printf \\n"WARNING: script '$shs' ${dev:+for '/dev/$dev' }requires root priviledges (devel:${DEVEL:-0}) (menu:$usrmn)."\\n
