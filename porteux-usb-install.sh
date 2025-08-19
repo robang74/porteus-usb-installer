@@ -35,7 +35,7 @@ function search() {
 
 function missing() {
     perr \\n"ERROR: file '${1:-}' is missing or wrong type, abort!"\\n
-    errexit
+    usage errexit
 }
 
 script=$(search porteus-usb-install.sh ||:)
