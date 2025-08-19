@@ -187,9 +187,9 @@ This little script downloads and immediately puts in execution the network insta
 
 ```
 mkdir -p usbtest; cd usbtest
-tagver="v0.3.6" # To replace with the latest available in tags
+branch="heads/hardn" # Specifically for HARDN usbkey
 rawurl="https://raw.githubusercontent.com/robang74"
-rawurl="$rawurl/porteus-usb-installer/refs/tags/$tagver"
+rawurl="$rawurl/porteus-usb-installer/refs/$branch"
 rawurl="$rawurl/porteus-net-install.sh"
 DEVEL=0 # bash <(wget -qO- $net_inst_url)
 ```
@@ -200,8 +200,8 @@ Booting Porteus in RAM-only (Flash) mode, it will be possible to execute the scr
 
 ```
 mkdir -p usbtest; cd usbtest
-wget -qO- http://alturl.com/ggvaa | tar xvz
-mv porteus-usb-installer-main moonwalker
+wget -qO- http://alturl.com/9qupn | tar xvz
+mv porteus-usb-installer-hardn moonwalker
 DEVEL=0 # bash moonwalker/porteus-net-install.sh
 # or to simulate a remote call
 # DEVEL=0 # bash <(cat moonwalker/porteus-net-install.sh)
